@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מרוץ ויקי</title>
+<style>
+  :root { --bg:#F6F3EC; --card:#fff; --ink:#14213D; --ink2:#5A6378; --primary:#2F5FC4; --line:#DCD5C7; --danger:#D9463F; --dsoft:#FCE8E6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0E1424; --card:#18223A; --ink:#EEF1F8; --ink2:#B7C0D4; --primary:#5B8BEF; --line:#2C3856; --danger:#F07068; --dsoft:#3A1E24; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: system-ui, "Segoe UI", Roboto, "Noto Sans Hebrew", Arial, sans-serif; background: var(--bg); color: var(--ink); display: grid; place-items: center; padding: 24px;
+    background-image: radial-gradient(60% 45% at 50% 18%, rgba(255,214,140,.35), transparent 70%); }
+  .card { width: min(420px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 32px 24px; text-align: center; box-shadow: 0 6px 24px rgba(20,33,61,.1); animation: in .4s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes in { from { opacity: 0; transform: translateY(10px); } }
+  h1 { font-size: 40px; font-weight: 900; margin: 6px 0 18px; letter-spacing: -.01em; }
+  .ic { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 14px; display: grid; place-items: center; background: var(--dsoft); color: var(--danger); }
+  h2 { font-size: 24px; margin: 0 0 8px; }
+  p { color: var(--ink2); margin: 0 0 22px; line-height: 1.5; font-size: 17px; }
+  button { font: inherit; font-size: 19px; font-weight: 700; width: 100%; min-height: 56px; border: 0; border-radius: 999px; background: var(--primary); color: #fff; cursor: pointer; display: inline-flex; gap: 10px; align-items: center; justify-content: center; }
+  button:active { transform: scale(.98); }
+  svg.route { width: 180px; height: 48px; display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <svg class="route" viewBox="0 0 180 48" fill="none" aria-hidden="true"><path d="M10 38h50l14-14h40l14 14h40" stroke="#2F5FC4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g fill="var(--card)" stroke="currentColor" stroke-width="2.6"><circle cx="10" cy="38" r="5"/><circle cx="60" cy="38" r="5"/><circle cx="114" cy="24" r="5"/><circle cx="170" cy="38" r="5"/></g></svg>
+    <h1>מרוץ ויקי</h1>
+    <div class="ic"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 8.8A15 15 0 0 1 8 5.7M12 5a15 15 0 0 1 9.5 3.8"/><path d="M5.5 12.2A10 10 0 0 1 10 9.6M14.8 10a10 10 0 0 1 3.7 2.2"/><path d="M8.8 15.6a5 5 0 0 1 6.4 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/><path d="m3 3 18 18"/></svg></div>
+    <h2>צריך אינטרנט כדי לשחק</h2>
+    <p>מרוץ ויקי טוען את הערכים ישירות מוויקיפדיה. בדקו את החיבור ונסו שוב.</p>
+    <button id="retry"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 0 0 5.6 7M4 12.5A8 8 0 0 0 18.4 17"/><path d="M5 3.5V7.5h4M19 20.5v-4h-4"/></svg> נסו שוב</button>
+  </main>
+<script>
+  var SITE = 'https://israelb014.github.io/merotz-wiki/';
+  document.getElementById('retry').onclick = function () {
+    var b = this; b.disabled = true; b.style.opacity = .7;
+    fetch(SITE + 'version.json?t=' + Date.now(), { cache: 'no-store', mode: 'no-cors' })
+      .then(function () { location.href = SITE; })
+      .catch(function () { b.disabled = false; b.style.opacity = 1; });
+  };
+</script>
+</body>
+</html>

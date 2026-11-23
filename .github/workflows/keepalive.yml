@@ -1,0 +1,28 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update keepalive row
+        run: |
+          URL=$(grep -oP "SUPABASE_URL = '\K[^']+" src/config.js || true)
+          KEY=$(grep -oP "SUPABASE_KEY = '\K[^']+" src/config.js || true)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Supabase not configured yet"; exit 0; fi
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          CODE=$(curl -s -o resp.txt -w '%{http_code}' -X PATCH "$URL/rest/v1/keepalive?id=eq.1" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -H "Prefer: return=representation" \
+            -d "{\"pinged_at\":\"$NOW\"}")
+          cat resp.txt; echo
+          echo "HTTP $CODE"
+          test "$CODE" -ge 200 -a "$CODE" -lt 300
+          grep -q '"id"' resp.txt

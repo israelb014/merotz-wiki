@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">מרוץ ויקי</string>
+    <string name="title_activity_main">מרוץ ויקי</string>
+    <string name="package_name">com.ibfix.merotzwiki</string>
+    <string name="custom_url_scheme">com.ibfix.merotzwiki</string>
+</resources>

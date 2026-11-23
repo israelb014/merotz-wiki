@@ -1,0 +1,97 @@
+{
+  "name": "merotz-wiki",
+  "productName": "Merotz Wiki",
+  "version": "1.0.0",
+  "description": "מרוץ ויקי – מרוץ בין ערכים בוויקיפדיה העברית",
+  "main": "main.cjs",
+  "author": {
+    "name": "ib-fix",
+    "email": "ib@ib-fix.com"
+  },
+  "homepage": "https://israelb014.github.io/merotz-wiki/",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:linux": "electron-builder --linux deb AppImage --publish never",
+    "dist:win": "electron-builder --win nsis --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.ibfix.merotzwiki",
+    "productName": "Merotz Wiki",
+    "executableName": "merotz-wiki",
+    "copyright": "© ib-fix",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "offline.html",
+      "build/icon.png"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "israelb014",
+        "repo": "merotz-wiki",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "merotz-wiki-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "מרוץ ויקי",
+      "uninstallDisplayName": "מרוץ ויקי",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "icon": "build/icons",
+      "category": "Game",
+      "synopsis": "מרוץ בין ערכים בוויקיפדיה העברית",
+      "desktop": {
+        "entry": {
+          "Name": "מרוץ ויקי",
+          "Name[he]": "מרוץ ויקי",
+          "Comment": "Hebrew Wikipedia race game",
+          "StartupWMClass": "merotz-wiki"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "deb": {
+      "artifactName": "merotz-wiki.${ext}",
+      "packageName": "merotz-wiki",
+      "maintainer": "ib-fix <ib@ib-fix.com>"
+    },
+    "appImage": {
+      "artifactName": "merotz-wiki.${ext}"
+    }
+  },
+  "desktopName": "merotz-wiki.desktop"
+}

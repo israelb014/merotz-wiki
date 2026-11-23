@@ -1,0 +1,14 @@
+{
+  "appId": "com.ibfix.merotzwiki",
+  "appName": "מרוץ ויקי",
+  "webDir": "app-shell",
+  "server": {
+    "url": "https://israelb014.github.io/merotz-wiki/",
+    "errorPath": "offline.html",
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#F6F3EC",
+    "allowMixedContent": false
+  }
+}

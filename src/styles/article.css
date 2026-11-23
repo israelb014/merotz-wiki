@@ -1,0 +1,98 @@
+/* Readable Wikipedia article rendering */
+.article-body { font-size: 18px; line-height: 1.75; color: var(--ink); overflow-wrap: anywhere; transition: opacity .2s; }
+.article-body.loading { opacity: .45; pointer-events: none; }
+.article-body p { margin: 0 0 14px; }
+.article-body h2 { font-family: var(--f-head); font-weight: 900; font-size: 27px; line-height: 1.2; margin: 30px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line-2); }
+.article-body h3 { font-size: 21px; font-weight: 800; margin: 22px 0 8px; }
+.article-body h4, .article-body h5 { font-size: 18px; font-weight: 800; margin: 18px 0 6px; }
+.article-body ul, .article-body ol { padding-inline-start: 24px; margin: 0 0 14px; }
+.article-body li { margin-bottom: 4px; }
+.article-body blockquote { margin: 14px 0; padding: 8px 16px; border-inline-start: 4px solid var(--primary); background: var(--card-2); border-radius: 0 12px 12px 0; }
+.article-body dl { margin: 0 0 12px; }
+.article-body dt { font-weight: 800; }
+.article-body dd { margin-inline-start: 18px; }
+.article-body sup, .article-body sub { line-height: 0; }
+.article-body hr { border: 0; border-top: 1px solid var(--line-2); }
+.article-body section { display: block; }
+
+/* links */
+.article-body a.wl {
+  color: var(--link); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+  padding: 3px 1px; margin: -3px -1px; border-radius: 5px; cursor: pointer;
+  transition: background .15s, color .15s;
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--link) 18%, transparent);
+}
+.article-body a.wl:hover { background: color-mix(in srgb, var(--link) 12%, transparent); text-decoration-color: var(--link); }
+.article-body a.wl:active { background: color-mix(in srgb, var(--link) 22%, transparent); }
+.article-body a.wl.pending { background: color-mix(in srgb, var(--link) 22%, transparent); animation: link-pulse .8s infinite; }
+@keyframes link-pulse { 50% { background: color-mix(in srgb, var(--link) 8%, transparent); } }
+.article-body a.anchor { color: var(--ink-2); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.article-body .dead { color: inherit; text-decoration: none; cursor: text; }
+.article-body.links-off a.wl { color: var(--ink); text-decoration-color: var(--line); pointer-events: none; }
+
+/* images */
+.article-body img { max-width: 100%; height: auto; border-radius: 10px; vertical-align: middle; background: var(--line-2); }
+.article-body figure { margin: 14px auto; display: table; max-width: 100%; }
+.article-body figure[typeof*="Thumb"], .article-body figure.mw-default-size { background: var(--card-2); border: 1px solid var(--line-2); border-radius: 14px; padding: 8px; }
+.article-body figcaption { display: table-caption; caption-side: bottom; font-size: 14px; color: var(--ink-2); line-height: 1.45; padding: 6px 8px 2px; text-align: center; }
+.article-body span[typeof*="mw:File"] img, .article-body .mw-file-element { border-radius: 8px; }
+.article-body .gallery, .article-body ul.gallery { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
+.article-body .gallerybox { width: auto !important; }
+.article-body .gallerytext { font-size: 13px; color: var(--ink-2); }
+@media (min-width: 700px) {
+  .article-body figure.mw-halign-left, .article-body figure[class*="halign-left"] { float: left; margin: 4px 0 12px 18px; max-width: 46%; }
+  .article-body figure.mw-halign-right, .article-body figure[class*="halign-right"], .article-body figure[typeof*="Thumb"]:not([class*="center"]):not([class*="none"]) { float: left; margin: 4px 0 12px 18px; max-width: 46%; clear: left; }
+  .article-body .infobox-wrap { float: left; max-width: 46%; margin: 0 0 14px 18px; clear: left; }
+  .article-body h2 { clear: both; }
+}
+
+/* tables & infobox (horizontal scroll) */
+.article-body .scroll-x { overflow-x: auto; margin: 0 0 16px; -webkit-overflow-scrolling: touch; border-radius: 14px; }
+.article-body table { border-collapse: collapse; font-size: 15px; line-height: 1.45; background: var(--card); }
+.article-body table td, .article-body table th { padding: 7px 10px; border: 1px solid var(--line-2); vertical-align: top; text-align: start; }
+.article-body table th { background: var(--card-2); font-weight: 700; }
+.article-body table.wikitable { min-width: 60%; }
+.article-body table.infobox { width: 100%; min-width: 280px; border: 1px solid var(--line); border-radius: 14px; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--card-2); }
+.article-body table.infobox td, .article-body table.infobox th { border: 0; border-top: 1px solid var(--line-2); }
+.article-body table.infobox caption, .article-body table.infobox .infobox-title, .article-body table.infobox tr:first-child th { font-family: var(--f-head); font-size: 19px; font-weight: 900; text-align: center; background: color-mix(in srgb, var(--primary) 8%, var(--card)); border-top: 0; padding: 10px; }
+.article-body table.infobox img { border-radius: 8px; }
+.article-body [style*="background"] { background-color: transparent; }
+:root[data-theme="dark"] .article-body table [style*="background"] { background: var(--card-2) !important; color: var(--ink) !important; }
+:root[data-theme="dark"] .article-body [style*="color:"] { color: inherit !important; }
+
+/* navboxes: collapsed, expandable */
+.article-body details.navbox-wrap { margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card-2); overflow: hidden; }
+.article-body details.navbox-wrap > summary { cursor: pointer; padding: 12px 16px; font-weight: 700; font-size: 16px; list-style: none; display: flex; align-items: center; gap: 8px; }
+.article-body details.navbox-wrap > summary::-webkit-details-marker { display: none; }
+.article-body details.navbox-wrap > summary::before { content: ''; width: 9px; height: 9px; border-inline-end: 2.5px solid var(--primary); border-bottom: 2.5px solid var(--primary); transform: rotate(45deg); transition: transform .2s; flex: none; margin-top: -4px; }
+.article-body details.navbox-wrap[open] > summary::before { transform: rotate(-135deg); margin-top: 4px; }
+.article-body details.navbox-wrap .scroll-x { margin: 0; border-radius: 0; }
+.article-body details.navbox-wrap table { width: 100%; font-size: 14px; background: transparent; }
+.article-body .navbox-title { display: none; }
+.article-body .navbox-group { white-space: nowrap; background: var(--card); }
+.article-body .navbox-list li, .article-body .hlist li { display: inline; }
+.article-body .hlist li:not(:last-child)::after { content: ' · '; color: var(--ink-3); }
+.article-body .hlist ul, .article-body .navbox-list ul { padding: 0; margin: 0; }
+
+/* hatnotes, misc */
+.article-body .hatnote, .article-body .dablink, .article-body [role="note"] { font-size: 15px; color: var(--ink-2); padding: 6px 12px; margin: 0 0 12px; background: var(--card-2); border-radius: 10px; border-inline-start: 3px solid var(--line); }
+.article-body .mw-heading { display: block; }
+.article-body .toc, .article-body #toc { display: none; }
+.article-body .mbox-text, .article-body .ambox { font-size: 14px; }
+.article-body table.ambox, .article-body table.metadata { display: none; }
+.article-body .mw-collapsible-toggle { display: none; }
+.article-body .thumbinner { width: auto !important; max-width: 100%; }
+.article-body .center { text-align: center; }
+.article-body .center * { margin-inline: auto; }
+.article-body .noprint, .article-body .mw-empty-elt { display: none; }
+.article-body .mw-headline { display: inline; }
+.article-body math, .article-body .mwe-math-element { direction: ltr; unicode-bidi: isolate; }
+.article-body .mwe-math-fallback-image-inline, .article-body .mwe-math-fallback-image-display { background: transparent; }
+:root[data-theme="dark"] .article-body .mwe-math-fallback-image-inline, :root[data-theme="dark"] .article-body .mwe-math-fallback-image-display { filter: invert(.9); }
+.article-body mark.fm { background: #FFE58A; color: #14213D; border-radius: 3px; padding: 0 1px; }
+.article-body mark.fm.cur { background: #FFB020; box-shadow: 0 0 0 2px #FFB020; }
+
+@media (min-width: 900px) {
+  .article-body { font-size: 19px; }
+}

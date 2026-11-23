@@ -1,0 +1,51 @@
+name: Daily challenge (next 14 days)
+
+on:
+  schedule:
+    # 00:30 Israel time: 21:30 UTC during IDT (summer), 22:30 UTC during IST (winter). The job checks the local hour.
+    - cron: '30 21 * * *'
+    - cron: '30 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Run only at 00:xx Israel time (unless manual)
+        id: gate
+        run: |
+          H=$(TZ=Asia/Jerusalem date +%H)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$H" = "00" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "Israel hour is $H – skipping"; fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == '1'
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.go == '1'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.gate.outputs.go == '1'
+      - name: Generate daily.json
+        if: steps.gate.outputs.go == '1'
+        run: node scripts/gen-daily.mjs --days 14
+      - name: Commit & redeploy
+        if: steps.gate.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- public/data/daily.json; then echo "No changes"; exit 0; fi
+          git config user.name "merotz-wiki-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daily.json
+          git commit -m "Daily challenges: $(TZ=Asia/Jerusalem date +%F)"
+          git push
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
