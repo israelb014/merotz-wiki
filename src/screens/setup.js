@@ -68,7 +68,8 @@ export default function setup(app, q) {
         catch (e) { toast(e instanceof OfflineError ? 'אין חיבור לאינטרנט' : e.message); btn.disabled = false; btn.textContent = 'המשך'; return; }
       }
       ctx.room?.updateSettings({ ...s });
-      go('/room', { replace: true, query: { code: ctx.room?.code || '' } });
+      if (history.length > 2) history.go(-2); // back to the lobby entry (lobby → modes → setup)
+      else go('/room', { replace: true, query: { code: ctx.room?.code || '' } });
       return;
     }
     persistSoloSettings();

@@ -10,10 +10,25 @@ const RECONNECT_MS = 60_000;
 
 export function randomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
 
-function loadSession(code) {
+// Resume the same player within 60s (reload / app restart), but never let two tabs of one browser share an id.
+const tabs = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('mw-tabs') : null;
+let activeRoomId = null;
+tabs?.addEventListener('message', (e) => { if (e.data?.q && e.data.q === activeRoomId) tabs.postMessage({ a: activeRoomId }); });
+async function idInUseByOtherTab(id) {
+  if (!tabs) return false;
+  return new Promise((resolve) => {
+    const h = (e) => { if (e.data?.a === id) { tabs.removeEventListener('message', h); resolve(true); } };
+    tabs.addEventListener('message', h);
+    tabs.postMessage({ q: id });
+    setTimeout(() => { tabs.removeEventListener('message', h); resolve(false); }, 200);
+  });
+}
+async function loadSession(code) {
   try {
+    const own = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+    if (own && own.code === code) return own;
     const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
-    if (s && s.code === code && Date.now() - s.ts < RECONNECT_MS) return s;
+    if (s && s.code === code && Date.now() - s.ts < RECONNECT_MS && !(await idInUseByOtherTab(s.id))) return s;
   } catch {}
   return null;
 }
@@ -33,13 +48,7 @@ export class Room {
   constructor({ code, profile, create = false }) {
     this.code = code;
     this.create = create;
-    const prev = loadSession(code);
-    this.me = {
-      id: prev?.id || profile.id + '-' + Math.random().toString(36).slice(2, 6),
-      name: profile.name, avatar: profile.avatar, color: profile.color,
-      joinedAt: prev?.joinedAt || Date.now(),
-    };
-    this.resumed = !!prev;
+    this.profile = profile;
     this.state = null;
     this.present = [];
     this.progress = {};   // pid -> {roundId, clicks, status, elapsed}
@@ -55,12 +64,12 @@ export class Room {
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(type, data) { for (const fn of this.listeners) try { fn(type, data); } catch (e) { console.error(e); } }
 
-  get isHost() { return this.state?.hostId === this.me.id; }
+  get isHost() { return !!this.me && this.state?.hostId === this.me.id; }
   get hostId() { return this.state?.hostId; }
   get phase() { return this.state?.phase || 'connecting'; }
   get settings() { return this.state?.settings || DEFAULT_GAME_SETTINGS; }
   get round() { return this.state?.round || null; }
-  get inRound() { return !!this.round?.players?.some((p) => p.id === this.me.id); }
+  get inRound() { return !!this.me && !!this.round?.players?.some((p) => p.id === this.me.id); }
   hostToLocal(t) { return t - this.clockOffset; }
   localNow() { return Date.now(); }
 
@@ -70,10 +79,21 @@ export class Room {
   }
 
   persistSession() {
-    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ code: this.code, id: this.me.id, joinedAt: this.me.joinedAt, ts: Date.now() })); } catch {}
+    if (!this.me) return;
+    const v = JSON.stringify({ code: this.code, id: this.me.id, joinedAt: this.me.joinedAt, ts: Date.now() });
+    try { localStorage.setItem(SESSION_KEY, v); sessionStorage.setItem(SESSION_KEY, v); } catch {}
   }
 
   async connect() {
+    const prev = await loadSession(this.code);
+    const profile = this.profile;
+    this.me = {
+      id: prev?.id || profile.id + '-' + Math.random().toString(36).slice(2, 6),
+      name: profile.name, avatar: profile.avatar, color: profile.color,
+      joinedAt: prev?.joinedAt || Date.now(),
+    };
+    this.resumed = !!prev;
+    activeRoomId = this.me.id;
     this.t = createTransport(this.code, this.me);
     this.t.onMessage((m) => this._onMessage(m));
     this.t.onPresence((list) => this._onPresence(list));
@@ -323,7 +343,8 @@ export class Room {
 
   async leave() {
     clearInterval(this._tick); clearInterval(this._persistTimer);
-    try { localStorage.removeItem(SESSION_KEY); } catch {}
+    try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch {}
+    activeRoomId = null;
     await this.t?.close();
     this.listeners.clear();
   }

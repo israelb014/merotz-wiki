@@ -83,6 +83,7 @@ img { max-width: 100%; }
 a { color: var(--link); }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: 2px; }
 .ic { flex: none; display: inline-block; vertical-align: middle; }
+[hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ===== Background: subtle radial glow + faint link network ===== */

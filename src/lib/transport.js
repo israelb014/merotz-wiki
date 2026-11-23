@@ -5,12 +5,17 @@ import { SUPABASE_URL, SUPABASE_KEY } from '../config.js';
 export const realtimeConfigured = () => !!(SUPABASE_URL && SUPABASE_KEY);
 export function transportKind() {
   const q = new URLSearchParams(location.search);
+  const relay = q.get('relay') || sessionStorage.getItem('mw-relay');
+  if (relay) { sessionStorage.setItem('mw-relay', relay); return 'relay'; }
   if (q.get('transport') === 'local' || sessionStorage.getItem('mw-transport') === 'local') { sessionStorage.setItem('mw-transport', 'local'); return 'local'; }
   return realtimeConfigured() ? 'supabase' : 'local';
 }
 
 export function createTransport(code, meta) {
-  return transportKind() === 'supabase' ? new SupaTransport(code, meta) : new LocalTransport(code, meta);
+  const k = transportKind();
+  if (k === 'supabase') return new SupaTransport(code, meta);
+  if (k === 'relay') return new RelayTransport(code, meta, sessionStorage.getItem('mw-relay'));
+  return new LocalTransport(code, meta);
 }
 
 class Base {
@@ -104,4 +109,26 @@ class LocalTransport extends Base {
     window.removeEventListener('pagehide', this._unload);
     this.bc?.close(); this.bc = null;
   }
+}
+
+/** Test transport: WebSocket relay (tests/relay.mjs) with Supabase-like broadcast + presence semantics. */
+class RelayTransport extends Base {
+  constructor(code, meta, url) { super(code, meta); this.url = url; this.list = []; }
+  async connect() {
+    await new Promise((resolve, reject) => {
+      this.ws = new WebSocket(this.url);
+      this.ws.onopen = () => { this.ws.send(JSON.stringify({ op: 'join', room: this.code, meta: this.meta })); };
+      this.ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.op === 'presence') { this.list = m.list; this._emitPres(); if (!this._ok) { this._ok = true; this._emitStatus('online'); resolve(); } }
+        else if (m.op === 'msg') this._emitMsg(m.payload);
+      };
+      this.ws.onerror = () => { if (!this._ok) reject(new Error('relay')); };
+      this.ws.onclose = () => this._emitStatus('offline');
+    });
+  }
+  send(type, payload = {}) { this.ws?.readyState === 1 && this.ws.send(JSON.stringify({ op: 'msg', payload: { type, from: this.meta.id, ...payload } })); }
+  track(meta) { this.meta = meta; this.ws?.send(JSON.stringify({ op: 'track', meta })); }
+  presence() { return this.list; }
+  async close() { try { this.ws?.close(); } catch {} }
 }

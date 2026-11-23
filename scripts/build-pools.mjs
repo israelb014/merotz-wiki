@@ -80,7 +80,7 @@ const META_TITLES = new Set(
     'iTunes', 'קואורדינטות גאוגרפיות', 'הספרייה הלאומית', 'ספריית הקונגרס', 'ויקיפדיה', 'ויקיפדיה העברית',
     'ויקיפדיה האנגלית', 'ויקינתונים', 'ויקימינים', 'ויקישיתוף', 'ויקימילון', 'ויקיציטוט', 'ויקיטקסט', 'קרן ויקימדיה',
     'מדיה ויקי', 'המרכז הלאומי למידע ביוטכנולוגי', 'האנציקלופדיה של החיים', 'קוד מזהה בין-לאומי',
-    'מערכת המידע הגלובלית למגוון ביולוגי', 'הרשימה האדומה של IUCN', 'ללא חשש', 'קרוב לסיכון', 'פגיע (שימור)',
+    'מערכת המידע הגלובלית למגוון ביולוגי', 'הרשימה האדומה של IUCN', 'ללא חשש', 'קרוב לסיכון', 'פגיע (שימור)', 'פות', 'פין', 'דגדגן', 'אשכים',
     'מצב שימור', 'טקסון מונוטיפי', 'מספר סידורי בין-לאומי לספר', 'ISBN', 'ISSN', 'מזהה עצם דיגיטלי',
     'מערכת לאחזור מידע', 'אינדקס', 'בקרת זהויות', 'אנציקלופדיה בריטניקה', 'האנציקלופדיה העברית',
     'אנציקלופדיה יהודית', 'אנציקלופדיה ynet', 'דבר (עיתון)', 'עיתונות עברית היסטורית', 'גובה פני הים', 'אזור זמן',
@@ -97,7 +97,7 @@ const META_TITLES = new Set(
   ].map((t) => t),
 );
 // Adult / unsuitable for a family game
-const UNSUITABLE_RE = /פורנו|(^|[\s(])(סקס|אונס|זנות|אוננות|ערום|ערווה)([\s)]|$)|מין אוראלי|BDSM|אורגזמה|נרתיק|דגדגן|פדופיל|זונה/;
+const UNSUITABLE_RE = /פורנו|(^|[\s(])(סקס|אונס|זנות|אוננות|ערום|ערווה)([\s)]|$)|מין אוראלי|BDSM|אורגזמה|נרתיק|דגדגן|פדופיל|זונה|מינית|מיניות|נוזל זרע|תא זרע|עוררות/;
 const MONTHS_RE = '(ינואר|פברואר|מרץ|מרס|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)';
 const HEB_MONTHS_RE = '(תשרי|חשוון|חשון|מרחשוון|כסלו|כסליו|טבת|שבט|אדר|אדר א\'|אדר ב\'|ניסן|אייר|סיוון|סיון|תמוז|אב|אלול)';
 const TITLE_RES = [
@@ -118,15 +118,16 @@ const TITLE_RES = [
   /^ISO /, /^ISBN/, /^קוד /, /^תקן /,
   /^הבחירות למועצ/, /^הבחירות המקומיות/, /^הבחירות לרשות/,
   /^\d+ \(/, // "13 (סרט)"
+  /^\d+[–-]\d+ לפנה"ס/, /עונת /, / - /, /^(רצח|פרשת|פרשיית) /, /^(תנוחות|יחסי) מין/,
   /^(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר) \d{4}$/,
 ];
-const KEEP_EXCEPTIONS = new Set(['ט"ו בשבט', 'ט"ו באב', 'ל"ג בעומר', 'תשעה באב', '1984 (ספר)', '1984 (רומן)']);
+const KEEP_EXCEPTIONS = new Set(['רצח רבין', 'ט"ו בשבט', 'ט"ו באב', 'ל"ג בעומר', 'תשעה באב', '1984 (ספר)', '1984 (רומן)']);
 // Patterns allowed only a few times per category (most popular kept)
 const CAPPED = [
   [/^הבחירות לכנסת/, 3],
   [/^הבחירות לנשיאות/, 2],
-  [/^ממשלת ישראל ה-/, 2],
-  [/^הכנסת ה-/, 2],
+  [/^הכנסת ה/, 2],
+  [/^ממשלת ישראל ה/, 2],
   [/^מבצע /, 25],
   [/^נבחרת /, 40],
   [/אירוויזיון \d{4}/, 6],
@@ -285,27 +286,56 @@ const CULT = [
   'Culture.Internet_culture',
 ];
 const GEO_REGION_PREFIX = 'Geography.Regions.';
-function classify(d) {
+const NOT_PLACE_RE = /^(אוניברסיטת|האוניברסיטה|הספרייה|ספריית|בית הקברות|בית קברות|בסיס|מוזיאון|נמל התעופה|תחנת|בית הספר|בית חולים|המרכז הרפואי|מכון|קבר|היכל|אצטדיון|תיאטרון|קניון|מלון|מגדל|כנסיית|מסגד|בית הכנסת)|צוותא/;
+const WAR_RE = /מלחמ|קרב |^קרב|מבצע|מרד|מצור|פלישת|כיבוש|מהפכ|טבח|התקוממות|אינתיפאדה|משבר|הסכם|ועידת|חוזה|שואה|האימפריה|ממלכת|שושלת|הצהרת|פוגרום|גירוש|עלייה/;
+function classify(d, title) {
   const tp = d.tp || {};
   const s = (k) => tp[k] || 0;
   const bio = s('Culture.Biography.Biography*');
+  const sport = s('Culture.Sports');
   const cats = [];
-  if (s('Culture.Food_and_drink') >= T && bio < 500) cats.push('food');
-  if (s('Culture.Sports') >= T) cats.push('sports');
-  if (SCI.some((k) => s(k) >= T) && bio < 500 && s('Culture.Sports') < 500) cats.push('science');
-  if (CULT.some((k) => s(k) >= T) && s('Culture.Sports') < 500) cats.push('culture');
-  if ((s('History_and_Society.History') >= T || s('History_and_Society.Military_and_warfare') >= T) && s('Culture.Sports') < 500)
-    cats.push('history');
+  if (s('Culture.Food_and_drink') >= 700 && bio < 300 && s('History_and_Society.Business_and_economics') < 500 && d.bl >= 20)
+    cats.push('food');
+  if (sport >= T) cats.push('sports');
+  if (SCI.some((k) => s(k) >= T) && bio < 500 && sport < 500) cats.push('science');
+  if (CULT.some((k) => s(k) >= T) && sport < 500) cats.push('culture');
+  const hist = s('History_and_Society.History');
+  const mil = s('History_and_Society.Military_and_warfare');
+  if (sport < 500 && (hist >= T || (mil >= T && (bio >= 500 || WAR_RE.test(title))))) cats.push('history');
   if (d.il >= T) cats.push('israel');
-  // geography: explicitly geographical, or only-regional topics (countries / cities typically)
+  // geography (provisional): explicitly geographical, or only-regional topics; confirmed later by place templates
   let regionMax = 0;
   let otherMax = 0;
   for (const [k, v] of Object.entries(tp)) {
     if (k.startsWith(GEO_REGION_PREFIX)) regionMax = Math.max(regionMax, v);
     else if (k !== 'Geography.Geographical') otherMax = Math.max(otherMax, v);
   }
-  if (bio < 500 && (s('Geography.Geographical') >= 500 || (regionMax >= 700 && otherMax < 500))) cats.push('geography');
+  if (bio < 500 && !NOT_PLACE_RE.test(title) && (s('Geography.Geographical') >= 500 || (regionMax >= 700 && otherMax < 500)))
+    cats.push('geography');
   return cats;
+}
+
+// Infobox / map templates that mark an article as a place
+const PLACE_TEMPLATES = [
+  'מפת מיקום', 'מדינה', 'עיר', 'יבשת', 'גוף מים', 'אי', 'הר', 'נהר', 'יישוב בישראל/1', 'מדבר', 'אגם', 'ים', 'מפל',
+  'שמורת טבע', 'פארק לאומי', 'אזור גאוגרפי', 'מחוז', 'מדינה בארצות הברית', 'יישוב', 'כפר', 'רכס הרים', 'הר געש',
+  'מערה', 'עמק', 'חצי אי', 'מפרץ', 'נחל', 'קרחון', 'מדינה לשעבר', 'טריטוריה',
+].map((t) => 'תבנית:' + t);
+
+async function fetchPlaceFlags(titles, info) {
+  const todo = titles.filter((t) => info[t] && info[t].pl === undefined);
+  console.log(`  place templates: ${titles.length - todo.length} cached, ${todo.length} to fetch`);
+  await mapLimit(chunk(todo, 50), 3, async (batch) => {
+    const hits = new Set();
+    for await (const json of apiPages({
+      action: 'query', prop: 'templates', titles: batch.join('|'), tlnamespace: '10', tllimit: 'max',
+      tltemplates: PLACE_TEMPLATES.join('|'),
+    })) {
+      for (const p of json.query?.pages || []) if (p.templates?.length) hits.add(p.title);
+    }
+    for (const t of batch) info[t].pl = hits.has(t) ? 1 : 0;
+  });
+  await saveInfo(info);
 }
 
 // ------------------------------------------------------------------ main
@@ -348,15 +378,26 @@ async function main() {
     for (let i = 0; i < 5 && info[c]?.r; i++) c = info[c].r;
     const d = info[c];
     if (!d || d.r || recs.has(c)) continue;
-    if (d.dis || d.len < 4000 || d.nocd) continue;
+    if (d.dis || d.len < 4000 || d.nocd || d.bl < 10) continue;
     if (!titleOk(c)) continue;
     const est = d.pop * K;
     const v = views.get(c);
-    let score = est;
-    if (v) score = Math.max(est, (est + v.views) / 2) * (1 + (0.25 * v.months) / 12);
-    recs.set(c, { title: c, bl: d.bl, score, cats: classify(d), tv: v ? v.months : 0 });
+    let views12 = est;
+    if (v) views12 = Math.max(est, (est + v.views) / 2) * (1 + (0.25 * v.months) / 12);
+    // Popularity: mostly (estimated) yearly views, tempered by how linked/central the article is.
+    // This keeps short-lived news spikes from dominating and favours broadly recognizable topics.
+    const score = Math.pow(views12 + 1, 0.65) * Math.pow(d.bl + 10, 0.35);
+    recs.set(c, { title: c, bl: d.bl, score, cats: classify(d, c), tv: v ? v.months : 0 });
   }
   console.log(`  ${recs.size} articles pass filters`);
+
+  // Confirm geography candidates with place templates
+  const geoCands = [...recs.values()].filter((r) => r.cats.includes('geography')).map((r) => r.title);
+  await fetchPlaceFlags(geoCands, info);
+  for (const t of geoCands) {
+    const r = recs.get(t);
+    if (!info[t].pl) r.cats = r.cats.filter((c) => c !== 'geography');
+  }
 
   // Pools
   const byScore = [...recs.values()].sort((a, b) => b.score - a.score);
