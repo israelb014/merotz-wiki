@@ -101,9 +101,14 @@ function mpResults(app) {
   const room = ctx.room;
   const g = ctx.session;
   let off;
+  let lastSig = '';
   const render = () => {
     const st = room.state;
     if (!st) return;
+    const sig = JSON.stringify([st.results?.roundId, st.results?.ranking?.map((p) => [p.id, p.status, p.rank]), Object.entries(room.routes).map(([k, v]) => [k, v?.length]), room.isHost, room.busy,
+      room.round?.players?.map((p) => [p.id, room.progress[p.id]?.status, room.progress[p.id]?.clicks])]);
+    if (sig === lastSig) return;
+    lastSig = sig;
     const res = st.results && st.results.roundId === room.round?.id ? st.results : null;
     if (!res) return renderWaiting();
     if (!recordedRounds.has(res.roundId)) {
@@ -157,7 +162,7 @@ function mpResults(app) {
       </section>
       ${best ? `<div class="best-banner"><b>המסלול הקצר ביותר:</b> ${best.path.map((x) => esc(x.t)).join(' ← ')}</div>` : ''}
       <div class="stack mt">
-        ${isHost ? `<button class="btn primary" id="again">${icon('refresh')} סיבוב נוסף</button>` : `<button class="btn primary" disabled>ממתינים למארח לסיבוב נוסף…</button>`}
+        ${isHost ? `<button class="btn primary" id="again" ${room.busy ? 'disabled' : ''}>${room.busy ? '<span class="spinner sm"></span> בוחר זוג…' : `${icon('refresh')} סיבוב נוסף`}</button>` : `<button class="btn primary" disabled>ממתינים למארח לסיבוב נוסף…</button>`}
         <button class="btn outline-strong" id="share">${icon('share')} שתף תוצאה</button>
         ${isHost ? `<button class="btn" id="lobby">${icon('gear')} שינוי הגדרות</button>` : ''}
       </div>

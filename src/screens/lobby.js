@@ -47,8 +47,13 @@ export default async function lobby(app, q) {
   }
   const room = ctx.room;
 
+  let lastSig = '';
   const render = () => {
     if (!app.isConnected) return;
+    const sig = JSON.stringify([room.players.map((p) => [p.id, p.name, p.color, p.avatar]), room.hostId, room.settings, room.phase, room.inRound, room.state?.msg, room.busy,
+      room.phase === 'playing' ? Object.entries(room.progress).map(([k, v]) => [k, v.status]) : 0]);
+    if (sig === lastSig) return;
+    lastSig = sig;
     const st = room.state;
     const s = room.settings;
     const players = room.players;
@@ -94,7 +99,7 @@ export default async function lobby(app, q) {
       app.querySelector('#settings').onclick = () => { ctx.roomSettingsDraft = { ...room.settings }; go('/modes', { query: { ctx: 'room' } }); };
       const start = app.querySelector('#start');
       if (start) start.onclick = async () => {
-        try { await room.startRound(); } catch (e) { toast(e.message || 'שגיאה בבחירת זוג'); render(); }
+        try { await room.startRound(); } catch (e) { toast(e.message || 'שגיאה בבחירת זוג'); lastSig = ''; render(); }
       };
     }
   };

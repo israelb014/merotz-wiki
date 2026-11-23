@@ -245,15 +245,14 @@ export async function shortestPath(start, target, opts = {}) {
       let found;
       // Always expand forward first from the start page (cheap: one Parsoid fetch), then the smaller frontier.
       // A backward node typically has more neighbours than a forward one, so weight the backward frontier.
-      if (fD === 0 || (fFront.length <= bFront.length * 1.5 && fFront.length)) found = await expandForward();
-      else if (bFront.length) found = await expandBackward();
-      else if (fFront.length) found = await expandForward();
-      else return null; // both exhausted
+      // A side with an empty frontier means every reachable node on that side is known: no further path exists.
+      if ((fD > 0 && !fFront.length) || (bD > 0 && !bFront.length)) return null;
+      if (fD === 0 || fFront.length <= bFront.length * 1.5) found = await expandForward();
+      else found = await expandBackward();
       if (found) return { length: found.length - 1, path: found };
       found = await validatePending(true);
       if (found) return { length: found.length - 1, path: found };
       if (fD + bD >= maxDepth && curLen > fD + bD) return null;
-      if (!fFront.length && !bFront.length) return null;
     }
   } catch (e) {
     if (e instanceof BudgetExceeded) {

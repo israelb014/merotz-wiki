@@ -363,3 +363,10 @@
 .profile-card .grow > b { display: block; }
 .rings-row .ring-tile { min-width: 0; }
 @media (max-width: 420px) { .rings-row .ring { transform: scale(.84); margin: -8px; } }
+/* HUD fit on phones */
+.hud { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; }
+.target-pill, .clicks-pill { padding: 0 11px; gap: 6px; font-size: 15px; }
+.target-pill .ic { width: 19px; height: 19px; }
+.code-actions .btn { white-space: nowrap; padding: 0 10px; gap: 6px; font-size: 15px; }
+.lobby .settings-card { margin-bottom: 8px; }
+@media (max-width: 400px) { .hud-ring .ring { transform: scale(.9); margin: -4px; } }
