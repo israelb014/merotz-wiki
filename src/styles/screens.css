@@ -291,7 +291,7 @@
 .world-stars, .world-lock { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
 .world.locked .world-head { opacity: .7; }
 .world.locked .world-map { opacity: .45; filter: grayscale(.6); }
-.world-map { position: relative; margin: 0 6px; }
+.world-map { position: relative; margin: 0 6px; overflow: hidden; }
 .world-path { position: absolute; inset: 0; width: 100%; height: 100%; }
 .lvl { position: absolute; transform: translate(50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .lvl-node { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 3.5px solid var(--primary); font-size: 22px; box-shadow: var(--shadow); transition: transform .2s var(--ease); }
@@ -300,8 +300,9 @@
 .lvl.closed .lvl-node { border-color: var(--line); color: var(--ink-3); background: var(--card-2); box-shadow: none; }
 .lvl-stars { display: flex; color: var(--line); }
 .lvl-stars .on { color: var(--warn); }
-.lvl-label { position: absolute; top: 18px; inset-inline-end: 66px; width: max-content; max-width: 34vw; font-size: 13px; font-weight: 600; color: var(--ink-2); background: color-mix(in srgb, var(--bg) 85%, transparent); padding: 2px 8px; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lvl[style*="right:28%"] .lvl-label { inset-inline-end: auto; inset-inline-start: 66px; }
+.lvl-label { position: absolute; top: 18px; inset-inline-start: 66px; width: max-content; max-width: min(36vw, 220px); font-size: 13px; font-weight: 600; color: var(--ink-2); background: color-mix(in srgb, var(--bg) 85%, transparent); padding: 2px 8px; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvl.side-l .lvl-label { inset-inline-start: auto; inset-inline-end: 66px; }
+.world-path polyline { stroke-linecap: round; }
 
 /* ===== Stats ===== */
 .tabs { margin-bottom: 4px; }

@@ -36,7 +36,7 @@ export default async function campaign(app) {
   const worlds = campaignProgress(camp);
   const total = worlds.reduce((a, w) => a + w.stars, 0);
   const max = worlds.reduce((a, w) => a + w.levels.length * 3, 0);
-  const pos = (i) => { const row = Math.floor(i / 2); const right = (row % 2 === 0) === (i % 2 === 0); return { x: right ? 72 : 28, y: 60 + i * 74 }; };
+  const pos = (i) => ({ x: [74, 50, 26, 50][i % 4], y: 50 + i * 78 });
   app.querySelector('.screen').innerHTML = `${appBar({ title: 'מסלול שלבים', end: `<span class="pill star-pill">${icon('starFill', { size: 18 })}<b class="num">${total}</b><span class="muted">/${max}</span></span>` })}
     ${worlds.map((w) => {
       const cat = CATEGORIES.find((c) => c.id === w.category);
@@ -47,9 +47,9 @@ export default async function campaign(app) {
           <div class="grow"><span class="muted small">עולם ${w.id}</span><h2 class="h-md">${esc(w.name)}</h2></div>
           ${w.unlocked ? `<span class="world-stars">${icon('starFill', { size: 18 })}<b class="num">${w.stars}</b>/30</span>` : `<span class="world-lock">${icon('lock', { size: 18 })} ${w.need} כוכבים</span>`}
         </header>
-        <div class="world-map" style="height:${60 + w.levels.length * 74}px">
-          <svg class="world-path" viewBox="0 0 100 ${60 + w.levels.length * 74}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}" fill="none" stroke="var(--primary)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-dasharray="${w.unlocked ? '0' : '6 6'}"/></svg>
-          ${w.levels.map((l, i) => { const p = pos(i); return `<button class="lvl ${l.open ? '' : 'closed'} ${l.stars ? 'done' : ''}" style="right:${100 - p.x}%;top:${p.y}px" data-lvl="${l.id}" aria-label="שלב ${l.id}${l.open ? '' : ' נעול'}">
+        <div class="world-map" style="height:${40 + w.levels.length * 78}px">
+          <svg class="world-path" viewBox="0 0 100 ${40 + w.levels.length * 78}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}" fill="none" stroke="var(--primary)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-dasharray="${w.unlocked ? '0' : '6 6'}"/></svg>
+          ${w.levels.map((l, i) => { const p = pos(i); return `<button class="lvl ${p.x < 50 ? 'side-l' : ''} ${l.open ? '' : 'closed'} ${l.stars ? 'done' : ''}" style="right:${100 - p.x}%;top:${p.y}px" data-lvl="${l.id}" aria-label="שלב ${l.id}${l.open ? '' : ' נעול'}">
               <span class="lvl-node">${l.open ? `<b class="num">${i + 1}</b>` : icon('lock', { size: 18 })}</span>
               <span class="lvl-stars">${[1, 2, 3].map((s) => icon(s <= l.stars ? 'starFill' : 'star', { size: 14, cls: s <= l.stars ? 'on' : '' })).join('')}</span>
               ${l.open ? `<span class="lvl-label">${esc(l.start)} ← ${esc(l.target)}</span>` : ''}
