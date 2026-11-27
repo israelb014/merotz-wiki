@@ -8,6 +8,7 @@ import { MODES } from '../lib/modes.js';
 import { play } from '../lib/sound.js';
 import { vibrate } from '../lib/haptics.js';
 import { ctx } from '../app.js';
+import { state } from '../lib/store.js';
 import { loadActiveGame } from '../lib/room.js';
 
 export function articleCard(label, title, cls = '') {
@@ -36,6 +37,8 @@ export default function pregame(app) {
   const isMP = !!room && room.phase === 'playing' && !!room.round && room.inRound && !ctx.pending;
   const p = isMP ? { start: room.round.start, target: room.round.target, forbidden: room.round.forbidden, settings: room.round.settings, kind: 'mp' } : ctx.pending;
   if (!p) { go('/', { replace: true }); return; }
+  // one daily attempt: once today's result exists the challenge can't be started again
+  if (!isMP && p.kind === 'daily' && p.meta?.date && state.daily[p.meta.date]) { ctx.pending = null; go('/daily', { replace: true }); return; }
   const mode = MODES[p.settings.mode];
   const ruleText = {
     race: 'מי שמגיע ראשון – מנצח. עד 10 דקות.',

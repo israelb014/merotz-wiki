@@ -6,7 +6,7 @@ import { fetchArticle, fetchSummary, articleUrl, OfflineError, sameTitle } from 
 import { MODES, STATUS_LABEL } from '../lib/modes.js';
 import { play as sfx } from '../lib/sound.js';
 import { vibrate } from '../lib/haptics.js';
-import { ctx, recordResult } from '../app.js';
+import { ctx, recordResult, saveSolo, clearSolo } from '../app.js';
 import { saveActiveGame } from '../lib/room.js';
 import { openExternal } from '../lib/platform.js';
 
@@ -101,7 +101,7 @@ export default function playScreen(app) {
       const st = pr?.status || 'playing';
       const absent = room.absentSince[p.id];
       const badge = st === 'finished' ? `<i class="pb ok">${icon('check', { size: 12, sw: 3 })}</i>` : st !== 'playing' ? `<i class="pb bad">${icon('close', { size: 11, sw: 3 })}</i>` : `<i class="pb num">${pr?.clicks ?? 0}</i>`;
-      return `<span class="ps ${p.id === room.me.id ? 'me' : ''} ${absent ? 'absent' : ''}" title="${esc(p.name)} · ${STATUS_LABEL[st]}">${avatarBadge(p, 42)}${badge}</span>`;
+      return `<span class="ps ${p.id === room.me.id ? 'me' : ''} ${absent ? 'absent' : ''}" title="${esc(room.label(p))} · ${STATUS_LABEL[st]}">${avatarBadge(p, 42)}${badge}</span>`;
     }).join('');
   };
 
@@ -173,6 +173,7 @@ export default function playScreen(app) {
   const roundId = g.meta?.roundId;
   function afterMove() {
     if (room) { room.sendProgress(g.progress(), roundId); saveActiveGame(room.code, roundId, g.snapshot()); }
+    else if (g.status === 'playing') saveSolo(g); else clearSolo();
     if (!alive) return;
     updateHud(); renderCrumbs(); renderStrip();
   }
@@ -310,6 +311,7 @@ export default function playScreen(app) {
       saveActiveGame(room.code, roundId, g.snapshot());
       setTimeout(() => stillHere() && ctx.session === g && go('/results', { replace: true }), 1500);
     } else {
+      await clearSolo();
       await recordResult(g);
       setTimeout(() => stillHere() && go('/results', { replace: true }), 1500);
     }
@@ -320,6 +322,7 @@ export default function playScreen(app) {
   show(g.current, { scroll: false });
   if (g.status !== 'playing') end(g.status === 'finished' ? 'arrived' : g.status);
   if (room) { room.sendProgress(g.progress(), roundId); saveActiveGame(room.code, roundId, g.snapshot()); }
+  else saveSolo(g); // starting a new game replaces the saved one
 
   return () => {
     alive = false;

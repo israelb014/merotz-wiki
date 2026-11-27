@@ -1,6 +1,9 @@
 // General edge cases: input, storage, navigation, tabs, resize, upgrade from 1.0.0.
 import { test, expect } from './fixtures.js';
+import { readFileSync } from 'node:fs';
 import { onboard, startCustom, waitArticle, clickLink, clicks, giveUp } from './helpers.js';
+
+const LATEST = JSON.parse(readFileSync(new URL('../public/data/changelog.json', import.meta.url)))[0].version;
 
 test('double-click on a link counts one move; double-click on "יאללה!" starts one game', async ({ page }) => {
   await onboard(page);
@@ -38,11 +41,12 @@ test('browser back during a game = in-game back (+1); at the start article it as
   await expect(page.locator('.res-badge')).toContainText('ויתרת', { timeout: 10_000 });
 });
 
-test('refresh in the middle of a solo game: lands safely on the home screen (no blank screen)', async ({ page }) => {
+test('refresh in the middle of a solo game: the game continues (1.0.2), no blank screen', async ({ page }) => {
   await onboard(page);
   await startCustom(page, { start: 'חומוס', target: 'שוקולד' });
   await page.reload();
-  await expect(page.locator('.home')).toBeVisible();
+  await expect(page.locator('.play')).toBeVisible();
+  await waitArticle(page, 'חומוס');
 });
 
 test('offline in the middle of a game: friendly error, continue when back online', async ({ page, mocks }) => {
@@ -207,7 +211,7 @@ test('upgrade: a profile saved by 1.0.0 opens in the new version with all data a
   await page.goto('./');
   await expect(page.locator('.home .me-chip')).toContainText('ותיק');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.locator('.modal .changelog')).toContainText('1.0.1', { timeout: 10_000 });
+  await expect(page.locator('.modal .changelog')).toContainText(LATEST, { timeout: 10_000 });
   await page.click('.modal [data-close]');
   await page.reload();
   await page.waitForTimeout(1500);

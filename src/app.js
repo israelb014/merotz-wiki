@@ -1,5 +1,6 @@
 // Shared app context & flows.
-import { state, save, addGame } from './lib/store.js';
+import { state, save, addGame, get, put, del } from './lib/store.js';
+import { GameSession } from './lib/game.js';
 import { go } from './lib/router.js';
 import { checkAchievements } from './lib/stats.js';
 import { loadJSON } from './lib/data.js';
@@ -51,6 +52,7 @@ export function startPending(p) {
 export async function recordResult(session, extra = {}) {
   const r = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ts: Date.now(), ...session.result(), ...extra };
   ctx.result = r;
+  if (r.kind !== 'mp') ctx.pending = null; // a finished game can't be restarted from a stale pregame
   try { await addGame(r); } catch (e) { console.warn(e); }
   if (r.kind === 'campaign' && r.levelId) {
     const stars = r.status === 'finished' ? (r.clicks <= r.par ? 3 : r.clicks <= r.par + 2 ? 2 : 1) : 0;
@@ -58,8 +60,9 @@ export async function recordResult(session, extra = {}) {
     if (stars > (state.campaign[r.levelId] || 0)) { state.campaign[r.levelId] = stars; await save('campaign'); }
   }
   if (r.kind === 'daily' && r.date) {
+    // one attempt per day: the first final result (win, give-up, …) is kept forever
     const prev = state.daily[r.date];
-    if (!prev || (prev.status !== 'finished' && r.status === 'finished')) {
+    if (!prev) {
       state.daily[r.date] = { status: r.status, clicks: r.clicks, elapsed: r.elapsed, path: r.path, par: r.par, start: r.start, target: r.target };
       await save('daily');
     }
@@ -69,4 +72,44 @@ export async function recordResult(session, extra = {}) {
   const unlocked = await checkAchievements(r, { campaign });
   if (unlocked.length) setTimeout(() => { play('star'); unlocked.forEach((a, i) => setTimeout(() => toast(`הישג חדש: ${a.name}`, 2600), i * 2800)); }, 900);
   return { result: r, unlocked };
+}
+
+// ---------------- saved solo game (resume after reload / app restart) ----------------
+const SOLO_KEY = 'activeSolo';
+export const SOLO_MAX_AGE = 7 * 24 * 3600 * 1000;
+const SOLO_KINDS = ['solo', 'campaign', 'daily'];
+
+/** Persist the running non-room game (called on start and after every move). */
+export function saveSolo(g) {
+  if (!g || !SOLO_KINDS.includes(g.kind) || g.status !== 'playing') return Promise.resolve();
+  return put('kv', SOLO_KEY, { v: 1, savedAt: Date.now(), snap: g.snapshot() }).catch(() => {});
+}
+export function clearSolo() { return del('kv', SOLO_KEY).catch(() => {}); }
+
+const validSnap = (s) => !!s && typeof s === 'object' && typeof s.start === 'string' && typeof s.target === 'string' && Array.isArray(s.path) && s.path.length > 0
+  && Array.isArray(s.stack) && s.stack.length > 0 && typeof s.clicks === 'number' && typeof s.startAt === 'number' && s.settings && typeof s.settings === 'object'
+  && SOLO_KINDS.includes(s.kind) && s.status === 'playing';
+
+/**
+ * At startup: resume a saved solo game. Returns the route to show ('/play' or '/results') or null.
+ * Timed games keep running while the app is closed (real clock); if time ran out meanwhile the game is
+ * recorded as a timeout. Saved games untouched for 7 days are dropped silently.
+ */
+export async function resumeSolo(now = Date.now()) {
+  let rec;
+  try { rec = await get('kv', SOLO_KEY); } catch { return null; }
+  if (!rec) return null;
+  if (!validSnap(rec.snap) || !(now - (Number(rec.savedAt) || 0) < SOLO_MAX_AGE)) { await clearSolo(); return null; }
+  let g;
+  try { g = GameSession.restore(rec.snap); } catch { await clearSolo(); return null; }
+  ctx.pending = null;
+  if (g.limit && now - g.startAt >= g.limit) {
+    g.timeout();
+    await clearSolo();
+    await recordResult(g);
+    ctx.session = null;
+    return '/results';
+  }
+  ctx.session = g;
+  return '/play';
 }

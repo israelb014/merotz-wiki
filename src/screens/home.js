@@ -6,6 +6,7 @@ import { todaysDaily, msToJerusalemMidnight } from '../lib/data.js';
 import { openOverlay } from '../lib/ui.js';
 import { desktop, isNative } from '../lib/platform.js';
 import { randomCode } from '../lib/room.js';
+import { STATUS_LABEL } from '../lib/modes.js';
 
 export function logo() {
   return `<div class="logo" aria-label="מרוץ ויקי">
@@ -70,6 +71,10 @@ export default async function home(app) {
       const pct = Math.min(1, (d.par || res.clicks) / res.clicks);
       ringEl.innerHTML = ring({ size: 74, stroke: 7, pct, inner: `<span class="num" style="font-size:17px">${Math.round(pct * 100)}%</span>` });
       ringEl.title = 'יעילות: המסלול הקצר ביותר חלקי הקליקים שלך';
+    } else if (res) {
+      // one attempt per day: a give-up / fail is final until tomorrow's challenge
+      ringEl.innerHTML = ring({ size: 74, stroke: 7, pct: 0, cls: 'danger', inner: `<span style="font-size:13px;font-weight:700">${STATUS_LABEL[res.status] || 'הסתיים'}</span>` });
+      ringEl.title = 'האתגר של היום הסתיים – לחצו לתוצאה';
     } else {
       const left = msToJerusalemMidnight();
       ringEl.innerHTML = ring({ size: 74, stroke: 7, pct: 1 - left / 86400000, inner: `<span class="num" style="font-size:14px">${fmtTime(left / 60).replace(':', ':')}</span><span style="font-size:10px;font-weight:600;display:block">נותרו</span>` });

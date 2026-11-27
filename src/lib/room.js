@@ -90,6 +90,42 @@ export class Room {
     const rest = this.present.filter((p) => !seen.has(p.id)).sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1));
     return [...order.map((id) => byId.get(id)), ...rest];
   }
+  /**
+   * Display name for a player: duplicates get a number by join order ("דני", "דני 2", "דני 3").
+   * Computed locally from ids + join times (roster / presence), so every device shows the same labels;
+   * nothing is sent or changed on the server, and a player's own profile name stays as chosen.
+   */
+  label(p) {
+    if (!p) return '';
+    return this._labels().get(p.id) || String(p.name ?? '');
+  }
+  _labels() {
+    const known = new Map(); // id -> {name, joinedAt}
+    const add = (x, joinedAt) => {
+      if (!x || typeof x.id !== 'string') return;
+      const prev = known.get(x.id);
+      const j = Number.isFinite(joinedAt) ? joinedAt : prev?.joinedAt ?? Infinity;
+      known.set(x.id, { name: String(x.name ?? prev?.name ?? '').trim(), joinedAt: Math.min(j, prev?.joinedAt ?? Infinity) });
+    };
+    for (const r of this.state?.roster || []) add(r, Number(r.joinedAt));
+    for (const r of this.present) add(r, Number(r.joinedAt));
+    for (const r of this.round?.players || []) add(r);
+    for (const r of this.state?.results?.ranking || []) add(r);
+    const sig = JSON.stringify([...known].sort());
+    if (sig === this._labelSig) return this._labelMap;
+    const order = [...known].sort((a, b) => a[1].joinedAt - b[1].joinedAt || (a[0] < b[0] ? -1 : 1));
+    const count = new Map();
+    const out = new Map();
+    for (const [id, { name }] of order) {
+      const k = name.toLocaleLowerCase('he');
+      const n = (count.get(k) || 0) + 1;
+      count.set(k, n);
+      out.set(id, n === 1 ? name : `${name} ${n}`);
+    }
+    this._labelSig = sig; this._labelMap = out;
+    return out;
+  }
+
   /** Players to display (max 5) */
   get players() { return this._ordered().slice(0, MAX_PLAYERS); }
 

@@ -13,7 +13,7 @@ import { applyTheme } from './theme.js';
 import { closeTop, overlayOpen, toast } from './lib/ui.js';
 import { initBackButton, initDeepLinks, checkShellUpdates, desktop, showBanner } from './lib/platform.js';
 import { loadJSON } from './lib/data.js';
-import { ctx } from './app.js';
+import { ctx, resumeSolo } from './app.js';
 import { recentRoomCode } from './lib/room.js';
 import { installCrashReporting } from './lib/crash.js';
 import { platformName } from './lib/platform.js';
@@ -84,9 +84,12 @@ async function boot() {
   }
   // reload / app restart during a room round: go back through the room (resumes the same player + game)
   const hashPath = location.hash.replace(/^#/, '').split('?')[0];
-  if (['/play', '/pregame', '/results'].includes(hashPath)) {
-    const rc = recentRoomCode();
-    if (rc) history.replaceState(null, '', `${location.pathname}${location.search}#/room?code=${rc}`);
+  const rc = ['/play', '/pregame', '/results'].includes(hashPath) ? recentRoomCode() : null;
+  if (rc) history.replaceState(null, '', `${location.pathname}${location.search}#/room?code=${rc}`);
+  // otherwise a saved solo game continues (unless an invite / room link was opened)
+  else if (state.profile && !['/join', '/room', '/onboarding'].includes(hashPath)) {
+    const to = await resumeSolo();
+    if (to) history.replaceState(null, '', `${location.pathname}${location.search}#${to}`);
   }
   await render();
 

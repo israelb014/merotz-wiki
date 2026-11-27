@@ -1,7 +1,7 @@
 {
   "name": "merotz-wiki",
   "productName": "Merotz Wiki",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "מרוץ ויקי – מרוץ בין ערכים בוויקיפדיה העברית",
   "main": "main.cjs",
   "author": {

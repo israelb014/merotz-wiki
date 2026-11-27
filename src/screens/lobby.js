@@ -56,7 +56,7 @@ export default async function lobby(app, q) {
   let lastSig = '';
   const render = () => {
     if (!app.isConnected) return;
-    const sig = JSON.stringify([room.players.map((p) => [p.id, p.name, p.color, p.avatar]), room.hostId, room.settings, room.phase, room.inRound, room.state?.msg, room.busy,
+    const sig = JSON.stringify([room.players.map((p) => [p.id, room.label(p), p.color, p.avatar]), room.hostId, room.settings, room.phase, room.inRound, room.state?.msg, room.busy,
       room.phase === 'playing' ? Object.entries(room.progress).map(([k, v]) => [k, v.status]) : 0]);
     if (sig === lastSig) return;
     lastSig = sig;
@@ -80,7 +80,7 @@ export default async function lobby(app, q) {
       ${midRound ? `<div class="banner">${icon('hourglass')} סיבוב בעיצומו – תצטרפו אוטומטית לסיבוב הבא</div>` : ''}
       <section class="slots" aria-label="שחקנים">
         ${slots.map((p, i) => p ? `<div class="slot filled" style="--pc:${colorHex(p.color)}">
-            <span class="slot-name">${p.id === room.hostId ? `${icon('crown', { size: 20 })} ` : ''}${esc(p.name)}${p.id === room.me.id ? ' <small>(את/ה)</small>' : ''}${midRound && room.round?.players.some((x) => x.id === p.id) ? ` <small>· ${STATUS_LABEL[room.progress[p.id]?.status || 'playing']}</small>` : ''}</span>
+            <span class="slot-name">${p.id === room.hostId ? `${icon('crown', { size: 20 })} ` : ''}${esc(room.label(p))}${p.id === room.me.id ? ' <small>(את/ה)</small>' : ''}${midRound && room.round?.players.some((x) => x.id === p.id) ? ` <small>· ${STATUS_LABEL[room.progress[p.id]?.status || 'playing']}</small>` : ''}</span>
             ${avatarBadge(p, 46, 'slot-av')}<b class="slot-num num">${i + 1}</b>
           </div>` : `<div class="slot empty"><span class="slot-name">ממתין...</span><b class="slot-num num">${i + 1}</b></div>`).join('')}
       </section>

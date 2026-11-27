@@ -1,12 +1,12 @@
 import { icon } from '../lib/icons.js';
 import { on, esc } from '../lib/dom.js';
 import { go, back } from '../lib/router.js';
-import { appBar, toast } from '../lib/ui.js';
+import { appBar, toast, confirmDialog } from '../lib/ui.js';
 import { CATEGORIES, DIFFICULTIES, MODES } from '../lib/modes.js';
 import { pickPair, customPair, pickForbidden } from '../lib/data.js';
 import { ctx, soloSettings, persistSoloSettings, startPending } from '../app.js';
 import { attachAutocomplete } from './autocomplete.js';
-import { OfflineError } from '../lib/wiki.js';
+import { OfflineError, fetchSummary } from '../lib/wiki.js';
 
 export const ruleToggles = (s) => `
   <div class="card flat rules">
@@ -57,6 +57,15 @@ export default function setup(app, q) {
   cs.addEventListener('input', () => (s.customStart = cs.value.trim()));
   ct.addEventListener('input', () => (s.customTarget = ct.value.trim()));
 
+  /** Custom target that is a disambiguation page: allowed, after an explicit confirmation. Returns false to pick another. */
+  async function confirmDisambiguation(target) {
+    const sum = await fetchSummary(target).catch(() => null);
+    if (!sum?.disambiguation) return true;
+    const ok = await confirmDialog({ title: 'היעד הוא דף פירושונים – זה יכול להיות קשה במיוחד. להמשיך?', ok: 'המשך', cancel: 'בחר יעד אחר' });
+    if (!ok) { ct.focus(); ct.select(); }
+    return ok;
+  }
+
   const btn = app.querySelector('#next');
   btn.onclick = async () => {
     const hasCustom = s.customStart && s.customTarget;
@@ -64,8 +73,11 @@ export default function setup(app, q) {
     if (isRoom) {
       if (hasCustom) {
         btn.disabled = true; btn.textContent = 'בודק…';
-        try { const p = await customPair(s.customStart, s.customTarget); s.customStart = p.start; s.customTarget = p.target; }
-        catch (e) { toast(e instanceof OfflineError ? 'אין חיבור לאינטרנט' : e.message); btn.disabled = false; btn.textContent = 'המשך'; return; }
+        try {
+          const p = await customPair(s.customStart, s.customTarget);
+          if (!(await confirmDisambiguation(p.target))) { btn.disabled = false; btn.textContent = 'המשך'; return; }
+          s.customStart = p.start; s.customTarget = p.target;
+        } catch (e) { toast(e instanceof OfflineError ? 'אין חיבור לאינטרנט' : e.message); btn.disabled = false; btn.textContent = 'המשך'; return; }
       }
       ctx.room?.updateSettings({ ...s });
       if (history.length > 2) history.go(-2); // back to the lobby entry (lobby → modes → setup)
@@ -77,6 +89,7 @@ export default function setup(app, q) {
     btn.innerHTML = '<span class="spinner sm"></span> בוחר זוג ערכים…';
     try {
       const pair = hasCustom ? await customPair(s.customStart, s.customTarget) : await pickPair({ category: s.category, difficulty: s.difficulty });
+      if (hasCustom && !(await confirmDisambiguation(pair.target))) { btn.disabled = false; btn.textContent = 'המשך'; return; }
       const forbidden = s.mode === 'forbidden' ? await pickForbidden(pair.start, pair.target) : null;
       startPending({ ...pair, forbidden, settings: { ...s }, kind: 'solo', meta: { category: hasCustom ? 'custom' : s.category, difficulty: hasCustom ? null : s.difficulty } });
     } catch (e) {

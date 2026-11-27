@@ -114,7 +114,7 @@ function mpResults(app) {
     if (!recordedRounds.has(res.roundId)) {
       recordedRounds.add(res.roundId);
       const mine = res.ranking.find((p) => p.id === room.me.id);
-      if (mine && g) recordResult(g, { kind: 'mp', rank: mine.rank, playerCount: res.ranking.length, roundId: res.roundId, players: res.ranking.map((p) => ({ name: p.name, color: p.color, avatar: p.avatar, clicks: p.clicks, elapsed: p.elapsed, status: p.status, rank: p.rank })) });
+      if (mine && g) recordResult(g, { kind: 'mp', rank: mine.rank, playerCount: res.ranking.length, roundId: res.roundId, players: res.ranking.map((p) => ({ name: room.label(p), color: p.color, avatar: p.avatar, clicks: p.clicks, elapsed: p.elapsed, status: p.status, rank: p.rank })) });
       if (g) room.sendRoute(g.path, g.meta?.roundId);
       if (mine?.rank === 1) play('win');
     }
@@ -130,7 +130,7 @@ function mpResults(app) {
         ${r.players.map((p) => {
           const pr = p.id === room.me.id ? g?.progress() : room.progress[p.id];
           const s = pr?.status || 'playing';
-          return `<div class="wait-row">${avatarBadge(p, 40)}<b class="grow">${esc(p.name)}</b><span class="tag ${s === 'finished' ? 'success' : s === 'playing' ? '' : 'danger'}">${s === 'playing' ? `${pr?.clicks ?? 0} קליקים…` : STATUS_LABEL[s]}</span></div>`;
+          return `<div class="wait-row">${avatarBadge(p, 40)}<b class="grow">${esc(room.label(p))}</b><span class="tag ${s === 'finished' ? 'success' : s === 'playing' ? '' : 'danger'}">${s === 'playing' ? `${pr?.clicks ?? 0} קליקים…` : STATUS_LABEL[s]}</span></div>`;
         }).join('')}
       </section>
       <div class="center mt-l"><div class="spinner"></div><p class="muted">המסלולים המלאים ייחשפו בסיום</p></div>
@@ -150,13 +150,13 @@ function mpResults(app) {
         ${podium.map((x) => x ? `<div class="pod pod-${x.place}">
           <span class="crown c${x.place}">${icon('crown', { size: x.place === 1 ? 38 : 30, sw: 1.6 })}<i>${x.place}</i></span>
           <span class="av big" style="--av:${colorHex(x.p.color)}"><b>${esc(Array.from(String(x.p.name || '?'))[0])}</b></span>
-          <b class="pod-name">${esc(x.p.name)}</b>
+          <b class="pod-name">${esc(room.label(x.p))}</b>
           <span class="pod-meta num">${fmtTime(x.p.elapsed)} • ${clicksLabel(x.p.clicks)}</span>
         </div>` : '<div class="pod empty"></div>').join('')}
       </section>
       <section class="card routes-card">
         ${rk.map((p) => `<div class="route-row ${best?.p.id === p.id ? 'best' : ''}">
-          <div class="route-row-head"><b>${esc(p.name)}</b><span class="muted num small">${p.status === 'finished' ? `${fmtTime(p.elapsed)} • ${clicksLabel(p.clicks)}` : `${STATUS_LABEL[p.status]} • ${clicksLabel(p.clicks)}`}</span></div>
+          <div class="route-row-head"><b>${esc(room.label(p))}</b><span class="muted num small">${p.status === 'finished' ? `${fmtTime(p.elapsed)} • ${clicksLabel(p.clicks)}` : `${STATUS_LABEL[p.status]} • ${clicksLabel(p.clicks)}`}</span></div>
           ${routeLine(room.routes[p.id], colorHex(p.color), { status: p.status })}
         </div>`).join('')}
       </section>
@@ -169,7 +169,7 @@ function mpResults(app) {
     </main>`;
     app.querySelector('[data-back]').onclick = leave;
     app.querySelector('#share').onclick = () => {
-      const lines = [`מרוץ ויקי · ${MODES[res.mode]?.name}`, `${room.round.start} ← ${room.round.target}`, ...rk.map((p) => `${p.rank ? `${p.rank}.` : '–'} ${p.name}: ${p.status === 'finished' ? `${clicksLabel(p.clicks)} · ${fmtTime(p.elapsed)}` : STATUS_LABEL[p.status]}`), 'https://israelb014.github.io/merotz-wiki/'];
+      const lines = [`מרוץ ויקי · ${MODES[res.mode]?.name}`, `${room.round.start} ← ${room.round.target}`, ...rk.map((p) => `${p.rank ? `${p.rank}.` : '–'} ${room.label(p)}: ${p.status === 'finished' ? `${clicksLabel(p.clicks)} · ${fmtTime(p.elapsed)}` : STATUS_LABEL[p.status]}`), 'https://israelb014.github.io/merotz-wiki/'];
       share(lines.join('\n'));
     };
     const again = app.querySelector('#again');
