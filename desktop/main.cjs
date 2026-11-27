@@ -2,18 +2,18 @@
 const { app, BrowserWindow, shell, ipcMain, nativeTheme, Menu } = require('electron');
 const path = require('node:path');
 
-const SITE = 'https://israelb014.github.io/merotz-wiki/';
-const SITE_ORIGIN = 'https://israelb014.github.io';
-const isDeb = process.platform === 'linux' && !process.env.APPIMAGE;
+const { SITE, isSiteUrl, isExternalHttp, updateMode } = require('./lib.cjs');
+const crash = require('./crash-reporter.cjs');
+
+// crash reports: only in packaged builds, never in automated smoke tests
+crash.install(app, { version: app.getVersion(), enabled: app.isPackaged && !process.env.MW_HIDDEN && !process.env.MW_NO_CRASH_REPORT });
+
+const isDeb = updateMode({ isPackaged: true, platform: process.platform, appImage: process.env.APPIMAGE }) === 'deb-banner';
 let win = null;
 let updateInfo = null;
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-
-function isSiteUrl(url) {
-  try { const u = new URL(url); return u.origin === SITE_ORIGIN && u.pathname.startsWith('/merotz-wiki'); } catch { return false; }
-}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -39,24 +39,24 @@ function createWindow() {
     if (isMainFrame && code !== -3 /* aborted */ && !url.startsWith('file:')) win.loadFile(path.join(__dirname, 'offline.html'));
   });
   // external links → system browser
-  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  win.webContents.setWindowOpenHandler(({ url }) => { if (isExternalHttp(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => {
     if (url.startsWith('file:') || isSiteUrl(url)) return;
     e.preventDefault();
-    if (/^https?:/.test(url)) shell.openExternal(url);
+    if (isExternalHttp(url)) shell.openExternal(url);
   });
   // mouse back button / Alt+Left handled by the web app (with the click rule)
   win.on('app-command', (_e, cmd) => { if (cmd === 'browser-backward') win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'BrowserBack' }); });
   win.loadURL(SITE);
 }
 
-ipcMain.on('mw:open-external', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
+ipcMain.on('mw:open-external', (_e, url) => { if (isExternalHttp(url)) shell.openExternal(url); });
 ipcMain.on('mw:set-theme', (_e, t) => { if (win) win.setBackgroundColor(t === 'dark' ? '#0E1424' : '#F6F3EC'); });
 ipcMain.on('mw:quit-and-install', () => { try { require('electron-updater').autoUpdater.quitAndInstall(true, true); } catch {} });
 ipcMain.handle('mw:update-status', () => updateInfo);
 
 function initAutoUpdate() {
-  if (!app.isPackaged || isDeb) return; // .deb: in-app banner with download link instead
+  if (updateMode({ isPackaged: app.isPackaged, platform: process.platform, appImage: process.env.APPIMAGE }) !== 'auto') return; // .deb: in-app banner with download link instead
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
   autoUpdater.autoDownload = true;

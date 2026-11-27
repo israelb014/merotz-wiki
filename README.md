@@ -21,14 +21,18 @@
 | `scripts/` | בניית מאגרים, מסלול קצר ביותר (BFS דו־כיווני), יצירת קמפיין ואתגר יומי, רינדור אייקונים |
 | `android/` | מעטפת Capacitor (`com.ibfix.merotzwiki`) שטוענת את האתר החי |
 | `desktop/` | מעטפת Electron (Windows NSIS, Linux deb + AppImage) עם עדכון אוטומטי |
-| `tests/` | בדיקות Playwright |
+| `tests/` | בדיקות Playwright (מול mock של ויקיפדיה ושל Supabase Realtime), בדיקות יחידה, משתמש קוף |
+| `qa/` | מפת האפליקציה ודוח QA |
+| `config/crash-reporting.json` | הגדרות ניטור הקריסות (ntfy.sh) – קובץ אחד לווב, Android ו־Electron |
 | `design/` | קבצי העיצוב המחייבים |
 
 ## פיתוח
 ```bash
 npm ci
 npm run dev          # http://localhost:5173/merotz-wiki/
-npm test             # Playwright (מריץ שרת dev + relay לבדיקות מולטיפלייר)
+npm test             # יחידה + Playwright (390x844 ו־1440x900), בלי רשת אמיתית
+npm run test:monkey  # משתמש קוף: 5 ריצות × 2000 פעולות
+npm run test:live    # הבדיקה היחידה מול ויקיפדיה האמיתית
 npm run build
 node scripts/build-pools.mjs      # מאגרי ערכים
 node scripts/gen-campaign.mjs     # 60 שלבים

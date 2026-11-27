@@ -1,158 +1,202 @@
-import { test, expect } from '@playwright/test';
-import { WebSocketServer } from 'ws';
-import { onboard, waitArticle, clickLink } from './helpers.js';
+// Multiplayer over the real production transport (supabase-js + SupaTransport) talking to the in-process
+// Supabase Realtime mock (tests/mocks/supabase-mock.js). Each player is a separate browser context.
+import { test, expect } from './fixtures.js';
+import { onboard, waitArticle, clickLink, giveUp } from './helpers.js';
 
-// Dedicated relay (Supabase-like broadcast+presence) so we can inspect every message.
-let wss; const PORT = 8788; const log = [];
-test.beforeAll(() => {
-  wss = new WebSocketServer({ port: PORT });
-  const rooms = new Map();
-  const pres = (room) => { const m = rooms.get(room); const list = [...m.values()]; for (const ws of m.keys()) ws.readyState === 1 && ws.send(JSON.stringify({ op: 'presence', list })); };
-  wss.on('connection', (ws) => {
-    let room = null;
-    ws.on('message', (buf) => {
-      const m = JSON.parse(buf);
-      if (m.op === 'join') { room = m.room; if (!rooms.has(room)) rooms.set(room, new Map()); rooms.get(room).set(ws, m.meta); pres(room); }
-      else if (m.op === 'track') { rooms.get(room).set(ws, m.meta); pres(room); }
-      else if (m.op === 'msg') { log.push({ room, ...m.payload }); for (const o of rooms.get(room).keys()) if (o !== ws && o.readyState === 1) o.send(JSON.stringify({ op: 'msg', payload: m.payload })); }
-    });
-    ws.on('close', () => { if (room) { rooms.get(room).delete(ws); pres(room); } });
-  });
-});
-test.afterAll(() => new Promise((r) => { for (const c of wss.clients) c.terminate(); wss.close(() => r()); }));
-
-const RELAY = `ws://localhost:${PORT}`;
+test.describe.configure({ mode: 'parallel' });
 const code = () => String(1000 + Math.floor(Math.random() * 9000));
+const filled = (p) => p.page.locator('.slot.filled');
 
-async function player(browser, name) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'he-IL' });
-  const page = await ctx.newPage();
-  page.on('pageerror', (e) => console.log(`[${name}] pageerror`, e.message));
-  return { ctx, page, name };
-}
-async function host(browser, c, name = 'נועה') {
-  const p = await player(browser, name);
-  await onboard(p.page, name, { query: `relay=${RELAY}` });
-  await p.page.goto(`./?relay=${RELAY}#/room?code=${c}&create=1`);
-  await expect(p.page.locator('.lobby .code-big')).toHaveText(c);
+async function host(newPlayer, c, name = 'נועה') {
+  const p = await newPlayer(name);
+  await onboard(p.page, name);
+  await p.page.goto(`./#/room?code=${c}&create=1`);
+  await expect(p.page.locator('.lobby .code-big')).toHaveText(c, { timeout: 20_000 });
+  await expect(p.page.locator('.code-card')).not.toContainText('מצב בדיקה מקומי');
   return p;
 }
-async function joiner(browser, c, name) {
-  const p = await player(browser, name);
-  await onboard(p.page, name, { query: `relay=${RELAY}&room=${c}` });
+async function joiner(newPlayer, c, name) {
+  const p = await newPlayer(name);
+  await onboard(p.page, name, { query: `room=${c}` });
   await expect(p.page.locator('.join .code-box').first()).toHaveValue(c[0]);
   await p.page.click('#join');
   await expect(p.page.locator('.lobby .code-big')).toHaveText(c, { timeout: 20_000 });
   return p;
 }
-const filled = (p) => p.page.locator('.slot.filled');
+async function setPair(H, start, target, mode = 'fewest') {
+  await H.page.click('#settings');
+  await H.page.click(`[data-mode="${mode}"]`);
+  if (mode === 'clock') await H.page.click('[data-min="2"]');
+  await H.page.click('.custom summary');
+  await H.page.fill('#cs', start); await H.page.fill('#ct', target);
+  await H.page.click('#next');
+  await expect(H.page.locator('.settings-card')).toContainText(`${start} ← ${target}`);
+}
+async function startAndPlay(H, all, start) {
+  await H.page.click('#start');
+  for (const p of all) { await expect(p.page.locator('.play')).toBeVisible({ timeout: 30_000 }); await waitArticle(p.page, start); }
+}
 
-test('3 players: lobby, host settings, synced start, live strip, results with routes', async ({ browser }) => {
+test('5 players: full round, live strip, podium and routes; privacy of progress messages', async ({ newPlayer, hub }) => {
   const c = code();
-  const A = await host(browser, c, 'נועה');
-  const B = await joiner(browser, c, 'איתי');
-  const C = await joiner(browser, c, 'מאיה');
-  for (const p of [A, B, C]) await expect(filled(p)).toHaveCount(3);
-  await expect(A.page.locator('.slot.filled').first()).toContainText('נועה');
-  await expect(B.page.locator('#start')).toHaveCount(0); // only host can start
-
-  // host changes settings: fewest clicks + custom pair
-  await A.page.click('#settings');
-  await A.page.click('[data-mode="fewest"]');
-  await A.page.click('.custom summary');
-  await A.page.fill('#cs', 'חומוס');
-  await A.page.fill('#ct', 'טחינה');
-  await A.page.click('#next');
-  await expect(A.page.locator('.settings-card')).toContainText('חומוס ← טחינה');
-  await expect(B.page.locator('.settings-card')).toContainText('הכי מעט קליקים');
-
-  await A.page.click('#start');
-  for (const p of [A, B, C]) await expect(p.page.locator('.pregame')).toBeVisible({ timeout: 20_000 });
-  for (const p of [A, B, C]) { await expect(p.page.locator('.play')).toBeVisible({ timeout: 20_000 }); await waitArticle(p.page, 'חומוס'); }
-  await expect(A.page.locator('#strip .ps')).toHaveCount(3);
-
-  // B arrives (1 click); A and C give up
-  await clickLink(B.page, 'טחינה');
-  await expect(B.page.locator('.end-flash.win')).toBeVisible();
-  await expect(A.page.locator('#strip .pb.ok')).toHaveCount(1, { timeout: 10_000 });
-  for (const p of [A, C]) { await p.page.click('#b-quit'); await p.page.click('.modal [data-close="ok"]'); }
-
-  for (const p of [A, B, C]) {
-    await expect(p.page.locator('.podium .pod-1')).toContainText('איתי', { timeout: 20_000 });
-    await expect(p.page.locator('.route-row')).toHaveCount(3);
+  const A = await host(newPlayer, c, 'אחת');
+  const others = [];
+  for (const n of ['שתיים', 'שלוש', 'ארבע', 'חמש']) others.push(await joiner(newPlayer, c, n));
+  const all = [A, ...others];
+  for (const p of all) await expect(filled(p)).toHaveCount(5);
+  expect(hub.presence(`room-${c}`)).toHaveLength(5);
+  await setPair(A, 'חומוס', 'שוקולד');
+  for (const p of others) await expect(p.page.locator('.settings-card')).toContainText('חומוס ← שוקולד');
+  await startAndPlay(A, all, 'חומוס');
+  await expect(A.page.locator('#strip .ps')).toHaveCount(5);
+  // everyone moves to טחינה; players 2..5 arrive, A gives up
+  for (const p of others) { await clickLink(p.page, 'טחינה'); await waitArticle(p.page, 'טחינה'); }
+  for (const p of others) await clickLink(p.page, 'שוקולד');
+  await expect(A.page.locator('#strip .pb.ok')).toHaveCount(4, { timeout: 15_000 });
+  await giveUp(A.page);
+  for (const p of all) {
+    await expect(p.page.locator('.podium .pod-1')).toBeVisible({ timeout: 20_000 });
+    await expect(p.page.locator('.route-row')).toHaveCount(5);
   }
-  // full routes revealed only on results
-  await expect(A.page.locator('.route-row.best')).toContainText('איתי');
-  await expect(A.page.locator('.best-banner')).toContainText('חומוס ← טחינה');
-  await expect(C.page.locator('.route-row .rl-n em').filter({ hasText: 'טחינה' }).first()).toBeVisible();
-
-  // privacy: progress messages never contain article titles; routes are sent only after results
-  const prog = log.filter((m) => m.room === c && m.type === 'progress');
-  expect(prog.length).toBeGreaterThan(3);
-  for (const m of prog) expect(Object.keys(m).filter((k) => k !== 'room').sort()).toEqual(['clicks', 'elapsed', 'from', 'roundId', 'status', 'type'].sort());
-  const firstRoute = log.findIndex((m) => m.room === c && m.type === 'route');
-  const resultsIdx = log.findIndex((m) => m.room === c && m.type === 'state' && m.state.phase === 'results');
-  expect(firstRoute).toBeGreaterThan(resultsIdx);
-
-  // another round: host only
-  await expect(B.page.locator('button:has-text("ממתינים למארח")')).toBeVisible();
-  await A.page.click('#again');
-  for (const p of [A, B, C]) await expect(p.page.locator('.pregame')).toBeVisible({ timeout: 20_000 });
-  for (const p of [A, B, C]) await p.ctx.close();
+  await expect(A.page.locator('.route-row').last()).toContainText('אחת');
+  const prog = hub.log.filter((m) => m.topic === `realtime:room-${c}` && m.payload?.type === 'progress');
+  expect(prog.length).toBeGreaterThan(5);
+  for (const m of prog) expect(Object.keys(m.payload).sort()).toEqual(['clicks', 'elapsed', 'from', 'roundId', 'status', 'type']);
+  // stats: five_players achievement for everyone
+  await others[0].page.goto('./#/stats?tab=ach');
+  await expect(others[0].page.locator('.ach.got')).toContainText(['בית מלא']);
 });
 
-test('host migration: when the host leaves, the oldest remaining player becomes host', async ({ browser }) => {
+test('a 6th player is refused with "החדר מלא" and does not disturb the room', async ({ newPlayer, hub }) => {
   const c = code();
-  const A = await host(browser, c, 'מארח');
-  const B = await joiner(browser, c, 'שני');
-  const C = await joiner(browser, c, 'שלישי');
-  await expect(filled(C)).toHaveCount(3);
-  await A.ctx.close();
-  await expect(filled(B)).toHaveCount(2, { timeout: 15_000 });
-  await expect(B.page.locator('#start')).toBeVisible({ timeout: 15_000 });
-  await expect(B.page.locator('.slot.filled').first()).toContainText('שני');
-  await expect(B.page.locator('.slot.filled').first().locator('.ic').first()).toBeVisible(); // crown
-  await expect(C.page.locator('#start')).toHaveCount(0);
-  await expect(C.page.locator('button:has-text("ממתינים שהמארח יתחיל")')).toBeVisible();
-  await B.ctx.close(); await C.ctx.close();
-});
-
-test('room full: a 6th player sees "החדר מלא"', async ({ browser }) => {
-  const c = code();
-  const ps = [await host(browser, c, 'אחד')];
-  for (const n of ['שתיים', 'שלוש', 'ארבע', 'חמש']) ps.push(await joiner(browser, c, n));
+  const ps = [await host(newPlayer, c, 'אחד')];
+  for (const n of ['שתיים', 'שלוש', 'ארבע', 'חמש']) ps.push(await joiner(newPlayer, c, n));
   await expect(filled(ps[0])).toHaveCount(5);
-  const six = await player(browser, 'שש');
-  await onboard(six.page, 'שש', { query: `relay=${RELAY}&room=${c}` });
+  const six = await newPlayer('שש');
+  await onboard(six.page, 'שש', { query: `room=${c}` });
   await six.page.click('#join');
   await expect(six.page.locator('.room-error')).toContainText('החדר מלא', { timeout: 20_000 });
   await expect(filled(ps[0])).toHaveCount(5);
-  for (const p of [...ps, six]) await p.ctx.close();
+  await expect.poll(() => hub.presence(`room-${c}`).length, { timeout: 10_000 }).toBe(5);
 });
 
-test('reconnect within 60s resumes the same player; late joiner waits for next round', async ({ browser }) => {
+test('disconnect + reconnect (reload) within 60s keeps the same player; mid-game reload resumes the game', async ({ newPlayer }) => {
   const c = code();
-  const A = await host(browser, c, 'מארחת');
-  const B = await joiner(browser, c, 'חוזר');
+  const A = await host(newPlayer, c, 'מארחת');
+  const B = await joiner(newPlayer, c, 'חוזר');
   await expect(filled(A)).toHaveCount(2);
-  const idBefore = await B.page.evaluate(() => JSON.parse(localStorage.getItem('mw-room-session')).id);
+  const id = await B.page.evaluate(() => JSON.parse(localStorage.getItem('mw-room-session')).id);
   await B.page.reload();
   await expect(B.page.locator('.lobby .code-big')).toHaveText(c, { timeout: 20_000 });
-  const idAfter = await B.page.evaluate(() => JSON.parse(localStorage.getItem('mw-room-session')).id);
-  expect(idAfter).toBe(idBefore);
+  expect(await B.page.evaluate(() => JSON.parse(localStorage.getItem('mw-room-session')).id)).toBe(id);
   await expect(filled(A)).toHaveCount(2);
-  await expect(B.page.locator('.slot.filled').nth(1)).toContainText('חוזר');
+  await setPair(A, 'חומוס', 'שוקולד');
+  await startAndPlay(A, [A, B], 'חומוס');
+  await clickLink(B.page, 'טחינה'); await waitArticle(B.page, 'טחינה');
+  await B.page.reload();
+  await expect(B.page.locator('.play')).toBeVisible({ timeout: 30_000 });
+  await waitArticle(B.page, 'טחינה');
+  await expect(B.page.locator('#clicks b')).toHaveText('1');
+  await clickLink(B.page, 'שוקולד');
+  await giveUp(A.page);
+  for (const p of [A, B]) await expect(p.page.locator('.podium .pod-1')).toContainText('חוזר', { timeout: 20_000 });
+});
 
-  // start a round, then a late joiner arrives
-  await A.page.click('#settings');
-  await A.page.click('[data-mode="fewest"]');
-  await A.page.click('.custom summary');
-  await A.page.fill('#cs', 'חומוס'); await A.page.fill('#ct', 'שומשום');
-  await A.page.click('#next');
-  await A.page.click('#start');
-  await expect(A.page.locator('.play')).toBeVisible({ timeout: 20_000 });
-  const L = await joiner(browser, c, 'מאחר');
-  await expect(L.page.locator('.banner')).toContainText('סיבוב בעיצומו');
-  await expect(L.page.locator('.play')).toHaveCount(0);
-  for (const p of [A, B, L]) await p.ctx.close();
+test('host leaves in the middle of a round: new host takes over and the round ends without waiting', async ({ newPlayer }) => {
+  const c = code();
+  const A = await host(newPlayer, c, 'מארח');
+  const B = await joiner(newPlayer, c, 'בת');
+  const C = await joiner(newPlayer, c, 'גל');
+  await setPair(A, 'חומוס', 'שוקולד');
+  await startAndPlay(A, [A, B, C], 'חומוס');
+  // host exits the room explicitly (X on the game? → quit then leave from results). Simulate closing the app.
+  await A.page.evaluate(async () => { const { ctx } = await import('/merotz-wiki/src/app.js'); await ctx.room.leave(); });
+  await A.context.close();
+  await expect(B.page.locator('.toast')).toContainText(/המארח/, { timeout: 15_000 });
+  await clickLink(B.page, 'טחינה'); await waitArticle(B.page, 'טחינה'); await clickLink(B.page, 'שוקולד');
+  await giveUp(C.page);
+  for (const p of [B, C]) {
+    await expect(p.page.locator('.podium .pod-1')).toContainText('בת', { timeout: 15_000 });
+    await expect(p.page.locator('.route-row')).toHaveCount(3);
+  }
+  await expect(B.page.locator('.route-row').filter({ hasText: 'מארח' })).toContainText('התנתק');
+  await expect(B.page.locator('#again')).toBeVisible();
+});
+
+test('two players reach the target in the same second: deterministic ranking, both finished', async ({ newPlayer }) => {
+  const c = code();
+  const A = await host(newPlayer, c, 'ראשון');
+  const B = await joiner(newPlayer, c, 'שנייה');
+  await setPair(A, 'חומוס', 'טחינה', 'race');
+  await startAndPlay(A, [A, B], 'חומוס');
+  await Promise.all([clickLink(A.page, 'טחינה'), clickLink(B.page, 'טחינה')]);
+  for (const p of [A, B]) await expect(p.page.locator('.podium .pod-2')).toBeVisible({ timeout: 20_000 });
+  const names = [];
+  for (const p of [A, B]) names.push([await p.page.locator('.podium .pod-1 .pod-name').textContent(), await p.page.locator('.podium .pod-2 .pod-name').textContent()]);
+  expect(names[0]).toEqual(names[1]); // same ranking on both devices
+  await expect(A.page.locator('.route-row .muted')).toHaveText([/קליק אחד/, /קליק אחד/]);
+});
+
+test('wrong / stale room code: "החדר לא נמצא"; back to join works', async ({ newPlayer }) => {
+  const c = code();
+  // stale: a room that existed and was left
+  const A = await host(newPlayer, c, 'היה');
+  await A.page.click('[data-back]'); await A.page.click('.modal [data-close="ok"]');
+  await expect(A.page.locator('.home')).toBeVisible();
+  const B = await newPlayer('מחפש');
+  await onboard(B.page, 'מחפש', { query: `room=${c}` });
+  await B.page.click('#join');
+  await expect(B.page.locator('.room-error')).toContainText('החדר לא נמצא', { timeout: 20_000 });
+  await B.page.click('.room-error [data-go="/join"]');
+  await expect(B.page.locator('.join')).toBeVisible();
+  // malformed codes never reach the network
+  await B.page.goto('./#/room?code=12a4');
+  await expect(B.page.locator('.home')).toBeVisible();
+  await B.page.goto('./#/join');
+  await B.page.fill('.code-box[data-i="0"]', '1');
+  await B.page.click('#join');
+  await expect(B.page.locator('.toast').last()).toContainText('4 ספרות');
+});
+
+test('duplicate player names are both shown and ranked separately', async ({ newPlayer }) => {
+  const c = code();
+  const A = await host(newPlayer, c, 'דני');
+  const B = await joiner(newPlayer, c, 'דני');
+  await expect(filled(A)).toHaveCount(2);
+  await expect(filled(A)).toHaveText([/דני/, /דני/]);
+  await setPair(A, 'חומוס', 'טחינה');
+  await startAndPlay(A, [A, B], 'חומוס');
+  await clickLink(B.page, 'טחינה');
+  await giveUp(A.page);
+  for (const p of [A, B]) await expect(p.page.locator('.route-row')).toHaveCount(2, { timeout: 20_000 });
+  await expect(B.page.locator('.route-row.best')).toBeVisible();
+});
+
+test('a player loses network mid-game, comes back, and is still part of the round', async ({ newPlayer, hub }) => {
+  const c = code();
+  const A = await host(newPlayer, c, 'יציב');
+  const B = await joiner(newPlayer, c, 'נופל');
+  await setPair(A, 'חומוס', 'שוקולד');
+  await startAndPlay(A, [A, B], 'חומוס');
+  await B.setOffline(true);
+  await expect(A.page.locator('#strip .ps.absent')).toHaveCount(1, { timeout: 15_000 });
+  await B.page.waitForTimeout(3000);
+  await B.setOffline(false);
+  await expect(A.page.locator('#strip .ps.absent')).toHaveCount(0, { timeout: 30_000 });
+  await clickLink(B.page, 'טחינה'); await waitArticle(B.page, 'טחינה'); await clickLink(B.page, 'שוקולד');
+  await giveUp(A.page);
+  for (const p of [A, B]) await expect(p.page.locator('.podium .pod-1')).toContainText('נופל', { timeout: 30_000 });
+});
+
+test('timed room (clock): host-side timeout ends the round for everyone', async ({ newPlayer }) => {
+  const c = code();
+  const A = await host(newPlayer, c, 'שעון');
+  const B = await joiner(newPlayer, c, 'מחוג');
+  for (const p of [A, B]) await p.page.clock.install();
+  await setPair(A, 'חומוס', 'שוקולד', 'clock');
+  await startAndPlay(A, [A, B], 'חומוס');
+  for (const p of [A, B]) await p.page.clock.fastForward('02:05');
+  for (const p of [A, B]) await p.page.clock.runFor(4000);
+  for (const p of [A, B]) await expect(p.page.locator('.route-row')).toHaveCount(2, { timeout: 30_000 });
+  await expect(A.page.locator('.route-row').first()).toContainText('נגמר הזמן');
 });

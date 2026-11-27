@@ -80,7 +80,7 @@ export default function setup(app, q) {
       const forbidden = s.mode === 'forbidden' ? await pickForbidden(pair.start, pair.target) : null;
       startPending({ ...pair, forbidden, settings: { ...s }, kind: 'solo', meta: { category: hasCustom ? 'custom' : s.category, difficulty: hasCustom ? null : s.difficulty } });
     } catch (e) {
-      console.error(e);
+      // validation messages (missing article, identical pair…) are expected – not console errors
       toast(e instanceof OfflineError ? 'אין חיבור לאינטרנט' : e.message || 'שגיאה');
       btn.disabled = false; btn.textContent = 'המשך';
     }

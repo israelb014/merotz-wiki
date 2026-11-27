@@ -31,5 +31,7 @@ export default defineConfig({
       },
     },
   },
-  server: { port: 5173 },
+  // tests (Playwright webServer sets VITE_NO_HMR): no hot reload / dependency re-optimization reloads mid-test
+  server: { port: 5173, hmr: process.env.VITE_NO_HMR ? false : undefined },
+  optimizeDeps: { include: ['@supabase/supabase-js', '@capacitor/core', '@capacitor/app', '@capacitor/haptics'] },
 });

@@ -1,0 +1,7 @@
+{
+  "_comment": "Single source of truth for crash reporting (web, Android, Windows/Linux). Reports go to ntfy.sh/<topic>. No accounts, no personal data.",
+  "server": "https://ntfy.sh",
+  "topic": "mw-crash-di7vj6umcj4jx8sdgf8x7z9y",
+  "maxPerHour": 5,
+  "maxQueue": 20
+}

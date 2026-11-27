@@ -5,6 +5,8 @@ def pkg = new JsonSlurper().parse(file('../../package.json'))
 def appVersion = (System.getenv('APP_VERSION') ?: pkg.version).replaceFirst('^v', '')
 def vParts = appVersion.tokenize('.').collect { it.replaceAll('[^0-9]', '').toInteger() }
 def appVersionCode = vParts[0] * 10000 + vParts[1] * 100 + vParts[2]
+// crash reporting: single source of truth shared with the web app and the desktop shell
+def crashCfg = new JsonSlurper().parse(file('../../config/crash-reporting.json'))
 
 android {
     namespace = "com.ibfix.merotzwiki"
@@ -16,11 +18,18 @@ android {
         versionCode appVersionCode
         versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "NTFY_SERVER", "\"${crashCfg.server}\""
+        buildConfigField "String", "NTFY_TOPIC", "\"${crashCfg.topic}\""
+        buildConfigField "int", "NTFY_MAX_PER_HOUR", "${crashCfg.maxPerHour}"
+        buildConfigField "int", "NTFY_MAX_QUEUE", "${crashCfg.maxQueue}"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     signingConfigs {
         release {

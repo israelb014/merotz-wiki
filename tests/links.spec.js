@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { onboard, startCustom, clicks } from './helpers.js';
 
 // Synthetic start article to test link rules deterministically (real API still resolves titles).
@@ -72,11 +72,11 @@ test('title resolution follows redirects and rejects missing pages', async ({ pa
   await page.goto('./');
   const r = await page.evaluate(async () => {
     const m = await import('/merotz-wiki/src/lib/wiki.js');
-    return m.resolveTitles(['ארה"ב', 'תל אביב', 'בריטניה', 'ערך_שלא_קיים_בכלל_98765', 'קטגוריה:מאכלים']);
+    return m.resolveTitles(['ארה"ב', 'תל אביב', 'בריטניה', 'ערך_שלא_קיים_בכלל_12345', 'קטגוריה:מאכלים']);
   });
   expect(r['ארה"ב']).toBe('ארצות הברית');
   expect(r['תל אביב']).toBe('תל אביב-יפו');
   expect(r['בריטניה']).toBe('הממלכה המאוחדת');
-  expect(r['ערך_שלא_קיים_בכלל_98765']).toBeNull();
+  expect(r['ערך_שלא_קיים_בכלל_12345']).toBeNull();
   expect(r['קטגוריה:מאכלים']).toBeNull();
 });

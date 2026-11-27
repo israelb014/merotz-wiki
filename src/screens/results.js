@@ -149,7 +149,7 @@ function mpResults(app) {
       <section class="podium">
         ${podium.map((x) => x ? `<div class="pod pod-${x.place}">
           <span class="crown c${x.place}">${icon('crown', { size: x.place === 1 ? 38 : 30, sw: 1.6 })}<i>${x.place}</i></span>
-          <span class="av big" style="--av:${colorHex(x.p.color)}"><b>${esc((x.p.name || '?')[0])}</b></span>
+          <span class="av big" style="--av:${colorHex(x.p.color)}"><b>${esc(Array.from(String(x.p.name || '?'))[0])}</b></span>
           <b class="pod-name">${esc(x.p.name)}</b>
           <span class="pod-meta num">${fmtTime(x.p.elapsed)} • ${clicksLabel(x.p.clicks)}</span>
         </div>` : '<div class="pod empty"></div>').join('')}

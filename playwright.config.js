@@ -1,27 +1,35 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// All tests run against mocks (tests/mocks): saved Wikipedia fixtures + a fake Supabase Realtime server.
+// The only test that touches the real Wikipedia API is tests/live/wiki-live.spec.js (LIVE_WIKI=1).
+const live = !!process.env.LIVE_WIKI;
 export default defineConfig({
   testDir: './tests',
-  testMatch: /.*\.spec\.js/,
+  testMatch: live ? /live\/.*\.spec\.js/ : /^(?!.*live\/).*\.spec\.js$/,
+  testIgnore: process.env.MONKEY ? [] : [/monkey\.spec\.js/],
   timeout: 120_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
-  workers: 2,
-  retries: 1,
+  workers: process.env.CI ? 2 : 3,
+  retries: 0,
   reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
-  globalSetup: './tests/global-setup.js',
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173/merotz-wiki/',
     locale: 'he-IL',
-    viewport: { width: 390, height: 844 },
-    trace: 'retain-on-failure',
+    trace: 'off',
     screenshot: 'only-on-failure',
+    serviceWorkers: 'block',
+    // local sandbox: preinstalled Chromium (CI installs the matching browser instead)
+    launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } }],
+  projects: [
+    { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, hasTouch: true } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }, grepInvert: /@mobile-only/ },
+  ],
   webServer: process.env.BASE_URL ? undefined : {
-    command: 'npx vite --port 5173 --strictPort',
+    command: 'VITE_NO_HMR=1 npx vite --port 5173 --strictPort',
     url: 'http://localhost:5173/merotz-wiki/',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },
 });

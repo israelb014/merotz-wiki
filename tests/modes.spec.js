@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { onboard, startCustom, waitArticle, clickLink, clickAnyLink, clicks } from './helpers.js';
 
 test('6 steps: 6 clicks max, the 7th is impossible → נכשל', async ({ page }) => {

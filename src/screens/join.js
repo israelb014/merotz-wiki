@@ -14,7 +14,7 @@ export default function join(app, q) {
     <section class="card join-card">
       <h2 class="code-label">קוד חדר</h2>
       <div class="code-boxes ltr" role="group" aria-label="קוד חדר בן 4 ספרות">
-        ${[0, 1, 2, 3].map((i) => `<input class="code-box num" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="ספרה ${i + 1}" value="${code[i] || ''}" data-i="${i}">`).join('')}
+        ${[0, 1, 2, 3].map((i) => `<input class="code-box num" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="ספרה ${i + 1}" value="${code[i] || ''}" data-i="${i}">`).join('')}
       </div>
       <svg class="code-wire" viewBox="0 0 300 40" fill="none" aria-hidden="true"><path d="M37 0v22a8 8 0 0 0 8 8h210a8 8 0 0 0 8-8V0M112 0v30M187 0v30" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round"/><circle cx="112" cy="30" r="5" fill="var(--primary)"/><circle cx="187" cy="30" r="5" fill="var(--primary)"/></svg>
       ${nameInput(model.name)}
@@ -28,6 +28,7 @@ export default function join(app, q) {
   boxes.forEach((b, i) => {
     b.addEventListener('input', () => {
       const v = b.value.replace(/\D/g, '');
+      // a pasted / autofilled code arrives in one box (no maxlength, so paste is not truncated to 1 digit)
       if (v.length > 1) { v.split('').slice(0, 4 - i).forEach((d, j) => (boxes[i + j].value = d)); boxes[Math.min(3, i + v.length)].focus(); return; }
       b.value = v;
       if (v && i < 3) boxes[i + 1].focus();

@@ -6,7 +6,7 @@
   --card-2: #FBF9F4;
   --ink: #14213D;
   --ink-2: #48526A;
-  --ink-3: #7C8496;
+  --ink-3: #626A7C; /* WCAG AA 4.5:1 on --bg and --card (was #7C8496, 3.4:1) */
   --line: #DCD5C7;
   --line-2: #E9E3D7;
   --primary: #2F5FC4;

@@ -5,7 +5,7 @@ import { checkAchievements } from './lib/stats.js';
 import { loadJSON } from './lib/data.js';
 import { toast } from './lib/ui.js';
 import { play } from './lib/sound.js';
-import { DEFAULT_GAME_SETTINGS } from './lib/modes.js';
+import { DEFAULT_GAME_SETTINGS, MODES, CATEGORIES, DIFFICULTIES } from './lib/modes.js';
 
 export const ctx = {
   pending: null,   // {start, target, forbidden, settings, kind, meta}
@@ -20,9 +20,20 @@ export function soloSettings() {
   if (!ctx.soloSettings) {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('mw-solo-settings') || '{}'); } catch {}
-    ctx.soloSettings = { ...DEFAULT_GAME_SETTINGS, allowBack: state.settings.allowBack, allowFind: state.settings.allowFind, ...saved, customStart: '', customTarget: '' };
+    ctx.soloSettings = { ...DEFAULT_GAME_SETTINGS, allowBack: state.settings.allowBack, allowFind: state.settings.allowFind, ...sanitizeSettings(saved), customStart: '', customTarget: '' };
   }
   return ctx.soloSettings;
+}
+/** Keep only valid values from stored settings (corrupted / old localStorage must never break the setup screens). */
+export function sanitizeSettings(v) {
+  const out = {};
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  if (MODES[v.mode]) out.mode = v.mode;
+  if (MODES.clock.limits.includes(v.timeLimit)) out.timeLimit = v.timeLimit;
+  if (CATEGORIES.some((c) => c.id === v.category)) out.category = v.category;
+  if (DIFFICULTIES.some((d) => d.id === v.difficulty)) out.difficulty = v.difficulty;
+  for (const k of ['allowBack', 'allowFind']) if (typeof v[k] === 'boolean') out[k] = v[k];
+  return out;
 }
 export function persistSoloSettings() {
   const { customStart, customTarget, ...rest } = ctx.soloSettings;

@@ -14,6 +14,9 @@ import { closeTop, overlayOpen, toast } from './lib/ui.js';
 import { initBackButton, initDeepLinks, checkShellUpdates, desktop, showBanner } from './lib/platform.js';
 import { loadJSON } from './lib/data.js';
 import { ctx } from './app.js';
+import { recentRoomCode } from './lib/room.js';
+import { installCrashReporting } from './lib/crash.js';
+import { platformName } from './lib/platform.js';
 
 import home from './screens/home.js';
 import onboarding from './screens/onboarding.js';
@@ -29,6 +32,8 @@ import daily from './screens/daily.js';
 import stats from './screens/stats.js';
 import settings, { showChangelog } from './screens/settings.js';
 import offline from './screens/offline.js';
+
+installCrashReporting({ version: __APP_VERSION__, platform: platformName, screen: () => currentRoute()?.path || location.hash.replace(/\?.*$/, ''), name: () => state.profile?.name });
 
 route('/', home);
 route('/onboarding', onboarding);
@@ -76,6 +81,12 @@ async function boot() {
     params.delete('room');
     const qs = params.toString();
     history.replaceState(null, '', `${location.pathname}${qs ? '?' + qs : ''}#/join?code=${roomCode}`);
+  }
+  // reload / app restart during a room round: go back through the room (resumes the same player + game)
+  const hashPath = location.hash.replace(/^#/, '').split('?')[0];
+  if (['/play', '/pregame', '/results'].includes(hashPath)) {
+    const rc = recentRoomCode();
+    if (rc) history.replaceState(null, '', `${location.pathname}${location.search}#/room?code=${rc}`);
   }
   await render();
 

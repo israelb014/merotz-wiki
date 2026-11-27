@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { onboard, startCustom } from './helpers.js';
 
 for (const [w, h] of [[390, 844], [1440, 900]]) {

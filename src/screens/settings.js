@@ -113,7 +113,7 @@ export function showAbout() {
       <p>מגיעים מערך התחלה לערך יעד בוויקיפדיה העברית – רק דרך קישורים פנימיים. לבד, נגד השעון, במסלול שלבים, באתגר היומי או עם עד 5 חברים.</p>
       <div class="card flat"><b>${icon('book', { size: 18 })} התוכן</b><p style="margin:6px 0 0">כל הערכים מגיעים מ<a href="#" data-ext="https://he.wikipedia.org/">ויקיפדיה העברית</a> ומוצגים ברישיון <a href="#" data-ext="https://creativecommons.org/licenses/by-sa/4.0/deed.he">CC BY-SA 4.0</a>. הכותבים: עורכי ויקיפדיה. קישור לכל ערך במקור נמצא בתפריט הערך (⋮) בזמן המשחק.</p></div>
       <div class="card flat"><b>${icon('shield', { size: 18 })} אין קשר לוויקימדיה</b><p style="margin:6px 0 0">מרוץ ויקי הוא פרויקט עצמאי ואינו קשור לקרן ויקימדיה או לוויקיפדיה, ואינו מאושר על ידן.</p></div>
-      <div class="card flat"><b>${icon('lock', { size: 18 })} פרטיות</b><p style="margin:6px 0 0">אין הרשמה. הכינוי, ההתקדמות וההיסטוריה נשמרים רק במכשיר שלכם. במשחק חברים נשלחים רק כינוי, אווטאר ומספר קליקים.</p></div>
+      <div class="card flat"><b>${icon('lock', { size: 18 })} פרטיות</b><p style="margin:6px 0 0">אין הרשמה. הכינוי, ההתקדמות וההיסטוריה נשמרים רק במכשיר שלכם. במשחק חברים נשלחים רק כינוי, אווטאר ומספר קליקים. כשמשהו קורס נשלח דיווח טכני אנונימי (גרסה, פלטפורמה, הודעת השגיאה, מסך – בלי כינוי ובלי קוד חדר). <a href="#" data-ext="${location.origin}${import.meta.env.BASE_URL}privacy.html">מדיניות הפרטיות</a></p></div>
       <p class="muted small">גרסה ${__APP_VERSION__} · <a href="#" data-ext="https://github.com/israelb014/merotz-wiki">קוד המקור</a></p>
     </div>
     <button class="btn mt" data-close>סגירה</button>`).node.addEventListener('click', (e) => {

@@ -1,3 +1,4 @@
+import { reportCaught } from './crash.js';
 // Realtime transport. Production: Supabase Realtime (Broadcast + Presence) on channel "room-{code}".
 // Tests / no-config fallback: BroadcastChannel transport with the same interface (same-browser only).
 import { SUPABASE_URL, SUPABASE_KEY } from '../config.js';
@@ -23,9 +24,9 @@ class Base {
   onMessage(cb) { this.msgCbs.push(cb); }
   onPresence(cb) { this.presCbs.push(cb); }
   onStatus(cb) { this.statusCbs.push(cb); }
-  _emitMsg(m) { for (const cb of this.msgCbs) try { cb(m); } catch (e) { console.error(e); } }
-  _emitPres() { const l = this.presence(); for (const cb of this.presCbs) try { cb(l); } catch (e) { console.error(e); } }
-  _emitStatus(s) { for (const cb of this.statusCbs) try { cb(s); } catch (e) { console.error(e); } }
+  _emitMsg(m) { for (const cb of this.msgCbs) try { cb(m); } catch (e) { reportCaught(e); } }
+  _emitPres() { const l = this.presence(); for (const cb of this.presCbs) try { cb(l); } catch (e) { reportCaught(e); } }
+  _emitStatus(s) { for (const cb of this.statusCbs) try { cb(s); } catch (e) { reportCaught(e); } }
 }
 
 class SupaTransport extends Base {

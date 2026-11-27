@@ -80,9 +80,21 @@ export async function loadAll() {
   const keys = ['profile', 'settings', 'campaign', 'daily', 'achievements', 'seenChangelog'];
   const vals = await Promise.all(keys.map((k) => get('kv', k).catch(() => undefined)));
   keys.forEach((k, i) => { if (vals[i] !== undefined) state[k] = vals[i]; });
-  state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
-  state.campaign ||= {}; state.daily ||= {}; state.achievements ||= {};
+  normalizeState();
   return state;
+}
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** Repair stored values of the wrong shape (old versions, a hand-edited or broken backup). */
+export function normalizeState() {
+  const p = state.profile;
+  if (p && !(isObj(p) && typeof p.name === 'string' && p.name.trim().length >= 1)) state.profile = null;
+  else if (p) state.profile = { ...p, id: typeof p.id === 'string' && p.id ? p.id : Math.random().toString(36).slice(2, 10), name: p.name.slice(0, 16), avatar: typeof p.avatar === 'string' ? p.avatar : 'compass', color: typeof p.color === 'string' ? p.color : 'blue' };
+  const st = isObj(state.settings) ? state.settings : {};
+  state.settings = { ...DEFAULT_SETTINGS };
+  for (const k of Object.keys(DEFAULT_SETTINGS)) if (typeof st[k] === typeof DEFAULT_SETTINGS[k]) state.settings[k] = st[k];
+  if (!['light', 'dark', 'system'].includes(state.settings.theme)) state.settings.theme = 'system';
+  for (const k of ['campaign', 'daily', 'achievements']) if (!isObj(state[k])) state[k] = {};
+  if (state.seenChangelog != null && typeof state.seenChangelog !== 'string') state.seenChangelog = null;
 }
 export async function save(key) { await put('kv', key, state[key]); }
 
@@ -97,7 +109,10 @@ export async function addGame(g) {
 }
 export async function listGames() {
   const g = await all('games');
-  return g.sort((a, b) => b.ts - a.ts);
+  // tolerate damaged / older records: history, stats and achievements must never crash on them
+  return g.filter((x) => isObj(x) && typeof x.id === 'string')
+    .map((x) => ({ ...x, ts: Number(x.ts) || 0, clicks: Number(x.clicks) || 0, elapsed: Number(x.elapsed) || 0, path: Array.isArray(x.path) ? x.path.filter((p) => isObj(p) && typeof p.t === 'string') : [], start: String(x.start ?? ''), target: String(x.target ?? '') }))
+    .sort((a, b) => b.ts - a.ts);
 }
 
 // ---- backup ----
@@ -106,13 +121,16 @@ export async function exportBackup() {
   return { app: 'merotz-wiki', v: 1, exported: new Date().toISOString(), kv: { ...state }, games };
 }
 export async function importBackup(data) {
-  if (!data || data.app !== 'merotz-wiki' || !data.kv) throw new Error('bad backup');
+  if (!data || data.app !== 'merotz-wiki' || !isObj(data.kv)) throw new Error('bad backup');
+  const before = { ...state };
   for (const k of Object.keys(state)) {
-    if (data.kv[k] !== undefined) { state[k] = data.kv[k]; await save(k); }
+    if (data.kv[k] !== undefined) state[k] = data.kv[k];
   }
-  state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
+  normalizeState();
+  if (!state.profile) { Object.assign(state, before); throw new Error('bad backup'); }
+  for (const k of Object.keys(state)) await save(k);
   if (Array.isArray(data.games)) {
     await clear('games');
-    for (const g of data.games.slice(-100)) await put('games', null, g);
+    for (const g of data.games.slice(-100)) if (isObj(g) && typeof g.id === 'string' && typeof g.ts === 'number') await put('games', null, { ...g, path: Array.isArray(g.path) ? g.path : [] });
   }
 }

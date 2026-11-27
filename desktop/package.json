@@ -1,7 +1,7 @@
 {
   "name": "merotz-wiki",
   "productName": "Merotz Wiki",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "מרוץ ויקי – מרוץ בין ערכים בוויקיפדיה העברית",
   "main": "main.cjs",
   "author": {
@@ -13,7 +13,10 @@
   "scripts": {
     "start": "electron .",
     "dist:linux": "electron-builder --linux deb AppImage --publish never",
-    "dist:win": "electron-builder --win nsis --publish never"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "prestart": "node -e \"require('fs').copyFileSync('../config/crash-reporting.json','crash-reporting.json')\"",
+    "predist:linux": "node -e \"require('fs').copyFileSync('../config/crash-reporting.json','crash-reporting.json')\"",
+    "predist:win": "node -e \"require('fs').copyFileSync('../config/crash-reporting.json','crash-reporting.json')\""
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
@@ -34,6 +37,9 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "lib.cjs",
+      "crash-reporter.cjs",
+      "crash-reporting.json",
       "offline.html",
       "build/icon.png"
     ],

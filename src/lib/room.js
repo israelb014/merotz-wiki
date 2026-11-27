@@ -1,3 +1,4 @@
+import { reportCaught } from './crash.js';
 // Multiplayer room controller. Host-authoritative; host = state.hostId, or the oldest present player if the host left.
 import { createTransport } from './transport.js';
 import { MAX_PLAYERS } from '../config.js';
@@ -32,6 +33,14 @@ async function loadSession(code) {
   } catch {}
   return null;
 }
+/** Code of a room this device was in during the last 60s (reload / app restart mid-round), or null. */
+export function recentRoomCode() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null') || JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (s && /^\d{4}$/.test(s.code) && Date.now() - s.ts < RECONNECT_MS) return s.code;
+  } catch {}
+  return null;
+}
 export function saveActiveGame(code, roundId, snap) {
   try { localStorage.setItem(ACTIVE_KEY, JSON.stringify({ code, roundId, snap, ts: Date.now() })); } catch {}
 }
@@ -54,6 +63,7 @@ export class Room {
     this.progress = {};   // pid -> {roundId, clicks, status, elapsed}
     this.routes = {};     // pid -> path (current results round)
     this.absentSince = {};
+    this.leftIds = new Set(); // players who exited the room on purpose (no 60s reconnect wait)
     this.clockOffset = 0; // hostNow - localNow
     this.listeners = new Set();
     this.status = 'connecting';
@@ -62,7 +72,7 @@ export class Room {
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  emit(type, data) { for (const fn of [...this.listeners]) try { fn(type, data); } catch (e) { console.error(e); } }
+  emit(type, data) { for (const fn of [...this.listeners]) try { fn(type, data); } catch (e) { reportCaught(e); } }
 
   get isHost() { return !!this.me && this.state?.hostId === this.me.id; }
   get hostId() { return this.state?.hostId; }
@@ -199,7 +209,7 @@ export class Room {
         this.clockOffset = (s.hostNow || Date.now()) - Date.now();
         this.state = s;
         if (s.round?.id !== prevRound) {
-          this.routes = {}; this.absentSince = {};
+          this.routes = {}; this.absentSince = {}; this.leftIds = new Set();
           for (const [k, v] of Object.entries(this.progress)) if (v.roundId !== s.round?.id) delete this.progress[k];
         }
         if (s.routes) for (const [pid, path] of Object.entries(s.routes)) this.routes[pid] = path;
@@ -209,6 +219,11 @@ export class Room {
         if (this.connected && this._isOverflow()) this.emit('full');
         break;
       }
+      case 'bye':
+        this.leftIds.add(m.from);
+        this.emit('progress');
+        if (this.isHost) this._checkRoundEnd();
+        break;
       case 'hello':
         if (this.isHost) { this._updateRoster(); this._broadcastState(); }
         break;
@@ -232,7 +247,10 @@ export class Room {
 
   _onPresence(list) {
     const before = new Set(this.present.map((p) => p.id));
-    this.present = list;
+    // presence comes from other devices: keep only well-formed entries, clamp names
+    this.present = (Array.isArray(list) ? list : []).filter((p) => p && typeof p.id === 'string')
+      .map((p) => ({ ...p, name: String(p.name ?? '').slice(0, 16) || '?', joinedAt: Number(p.joinedAt) || 0 }));
+    list = this.present;
     const now = Date.now();
     const ids = new Set(list.map((p) => p.id));
     for (const p of this.round?.players || []) {
@@ -291,6 +309,7 @@ export class Room {
       this.progress = {};
       this.routes = {};
       this.absentSince = {};
+      this.leftIds = new Set();
       this.state.round = {
         id: Math.random().toString(36).slice(2, 10),
         start: pair.start, target: pair.target, forbidden,
@@ -335,6 +354,7 @@ export class Room {
     const allDone = r.players.every((p) => {
       const pr = this._pr(p);
       if (pr && isDone(pr.status)) return true;
+      if (this.leftIds.has(p.id) && !this.present.some((x) => x.id === p.id)) return true;
       const abs = this.absentSince[p.id];
       return abs && now - abs > RECONNECT_MS;
     });
@@ -347,7 +367,7 @@ export class Room {
     const list = r.players.map((p) => {
       const pr = this._pr(p) || { clicks: 0, status: 'playing', elapsed: null };
       let status = pr.status;
-      if (status === 'playing') status = this.absentSince[p.id] ? 'left' : r.limit ? 'timeout' : 'left';
+      if (status === 'playing') status = this.absentSince[p.id] || this.leftIds.has(p.id) ? 'left' : r.limit ? 'timeout' : 'left';
       return { ...p, clicks: pr.clicks || 0, elapsed: pr.elapsed ?? (r.limit || 0), status };
     });
     const ranking = rankPlayers(r.settings.mode, list);
@@ -376,6 +396,8 @@ export class Room {
 
   async leave() {
     clearInterval(this._tick); clearInterval(this._persistTimer);
+    // tell the room this is a deliberate exit, so nobody waits 60s for a reconnect
+    if (this.connected && this.me) { try { this.t?.send('bye', { roundId: this.round?.id || null }); } catch {} }
     this.connected = false;
     try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch {}
     activeRoomId = null;

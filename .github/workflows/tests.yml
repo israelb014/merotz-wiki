@@ -1,0 +1,44 @@
+name: Tests
+
+# Every push runs the full suite: on main it runs as the first job of the Pages deploy (pages.yml) and on
+# release tags as the first job of release.yml – a failing test blocks the build and the publish.
+# No secrets: Wikipedia and Supabase are mocked (tests/mocks), the live Wikipedia test is not run here.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Unit tests (desktop shell, Android config)
+        run: npm run test:unit
+      - name: End-to-end tests (390x844 + 1440x900, mocked Wikipedia + Supabase)
+        run: npx playwright test
+      - name: Monkey user (one run, 2000 actions, seed = run number)
+        run: MONKEY=1 MONKEY_SEEDS=${{ github.run_number }} npx playwright test tests/monkey.spec.js --project=mobile
+      - name: Build
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: test-results
+          retention-days: 7

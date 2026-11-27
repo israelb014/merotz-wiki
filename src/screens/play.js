@@ -1,6 +1,6 @@
 import { icon, avatarBadge } from '../lib/icons.js';
 import { esc, on, ring, setRing, fmtTime, clicksLabel } from '../lib/dom.js';
-import { go, currentRoute } from '../lib/router.js';
+import { go, currentRoute, setLeaveGuard } from '../lib/router.js';
 import { openOverlay, confirmDialog, toast, closeTop, overlayOpen } from '../lib/ui.js';
 import { fetchArticle, fetchSummary, articleUrl, OfflineError, sameTitle } from '../lib/wiki.js';
 import { MODES, STATUS_LABEL } from '../lib/modes.js';
@@ -54,6 +54,7 @@ export default function playScreen(app) {
   const $ = (s) => app.querySelector(s);
   const body = $('#art-body');
   let loadingTitle = null;
+  let shownTitle = null; // article whose links are currently on screen
   let ended = false;
   let alive = true;
 
@@ -107,6 +108,7 @@ export default function playScreen(app) {
   // ---------- article ----------
   async function show(title, { scroll = true } = {}) {
     loadingTitle = title;
+    shownTitle = null;
     $('#art-title').textContent = title;
     body.classList.add('loading');
     if (!body.innerHTML) body.innerHTML = skeleton();
@@ -115,6 +117,7 @@ export default function playScreen(app) {
       if (!alive || loadingTitle !== title) return;
       body.innerHTML = a.html;
       body.classList.remove('loading');
+      shownTitle = title;
       if (scroll) { $('#article').scrollIntoView?.({ block: 'start' }); window.scrollTo({ top: 0 }); }
       decorateLinks();
       if (findOpen) runFind();
@@ -142,10 +145,20 @@ export default function playScreen(app) {
       return;
     }
     if (!a.classList.contains('wl') || ended) return;
+    // links of an article that is still loading / already replaced are not playable (keyboard Enter bypasses pointer-events)
+    if (body.classList.contains('loading') || body.classList.contains('links-off') || shownTitle !== g.current) return;
     if (!g.canMove) { toast('אין יותר קליקים'); return; }
     a.classList.add('pending');
     sfx('click'); vibrate('light');
-    const res = await g.navigate(a.dataset.t);
+    let res;
+    try {
+      res = await g.navigate(a.dataset.t);
+    } catch (err) {
+      // network/API failure while resolving the link: nothing was counted
+      a.classList.remove('pending');
+      if (alive) toast(err instanceof OfflineError ? 'אין חיבור לאינטרנט – נסו שוב' : 'לא הצלחנו לפתוח את הקישור – נסו שוב');
+      return;
+    }
     a.classList.remove('pending');
     if (!alive) return;
     if (res.event === 'missing') { toast('הערך הזה לא קיים'); return; }
@@ -179,6 +192,8 @@ export default function playScreen(app) {
     return true;
   }
   $('#b-back').onclick = doBack;
+  // browser / mouse back button during the game behaves like the in-game back (or asks before quitting)
+  const offLeave = setLeaveGuard(() => (ended ? false : gameApi.onBack?.() ?? false));
   gameApi.onBack = () => {
     if (overlayOpen()) { closeTop(); return true; }
     if (findOpen) { closeFind(); return true; }
@@ -312,6 +327,7 @@ export default function playScreen(app) {
     offRoom?.();
     window.removeEventListener('keydown', onKey);
     gameApi.onBack = null;
+    offLeave();
   };
 }
 

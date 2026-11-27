@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { onboard, waitArticle } from './helpers.js';
+import { fixtureDaily, jerusalemDate } from './mocks/wiki-mock.js';
 
 /** Click the playable link leading to `next` (exact title, or a redirect that resolves to it). */
 async function follow(page, next) {
@@ -48,10 +49,17 @@ test('campaign: level 1-1 with the shortest route earns 3 stars and unlocks 1-2'
   await expect(page.locator('.world').nth(1)).toHaveClass(/locked/); // world 2 needs 20 stars
 });
 
-test('daily challenge: play today, result shows shortest route, countdown and spoiler-free share', async ({ page, request }) => {
+test('real daily.json: today and the next days exist (generated nightly)', async ({ request }) => {
   const daily = await (await request.get('./data/daily.json')).json();
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
-  const d = daily.days[today];
+  const today = jerusalemDate();
+  expect(daily.days[today], `daily entry for ${today}`).toBeTruthy();
+  for (const d of Object.values(daily.days)) { expect(d.path[0]).toBe(d.start); expect(d.path.at(-1)).toBe(d.target); expect(d.par).toBe(d.path.length - 1); }
+});
+
+test('daily challenge: play today, result shows shortest route, countdown and spoiler-free share', async ({ page }) => {
+  // the page gets the fixture daily (titles that exist in the saved Wikipedia pages)
+  const today = jerusalemDate();
+  const d = fixtureDaily().days[today];
   expect(d, `daily entry for ${today}`).toBeTruthy();
   await onboard(page);
   await expect(page.locator('#daily-pair')).toContainText(d.start);

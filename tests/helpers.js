@@ -1,5 +1,4 @@
 import { expect } from '@playwright/test';
-export const RELAY = 'ws://localhost:8787';
 
 export async function onboard(page, name = 'בודק', { query = '' } = {}) {
   await page.goto(query ? `./?${query}` : './');
@@ -56,4 +55,10 @@ export async function clickAnyLink(page, avoid = []) {
 
 export async function clicks(page) {
   return Number(await page.locator('#clicks b').textContent());
+}
+
+/** Give up the current game via the quit button + confirm dialog. */
+export async function giveUp(page) {
+  await page.click('#b-quit');
+  await page.click('.modal [data-close="ok"]');
 }

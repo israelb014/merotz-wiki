@@ -57,7 +57,7 @@ export default async function campaign(app) {
         </div>
       </section>`;
     }).join('')}`;
-  on(app, 'click', '[data-back]', () => back());
+  // (the [data-back] handler bound above keeps working: it is delegated on `app`)
   on(app, 'click', '[data-lvl]', (e, t) => {
     const lvl = worlds.flatMap((w) => w.levels).find((l) => l.id === t.dataset.lvl);
     if (!lvl.open) { toast(worlds.find((w) => w.id === lvl.worldId).unlocked ? 'סיימו את השלב הקודם כדי לפתוח' : 'העולם הזה עוד נעול'); return; }

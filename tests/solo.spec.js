@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { onboard, startCustom, waitArticle, clickLink, clicks } from './helpers.js';
 
 test.describe('solo game', () => {
@@ -58,14 +58,15 @@ test.describe('solo game', () => {
   });
 });
 
-test('offline: friendly screen with retry', async ({ page, context }) => {
+test('offline: friendly screen with retry', async ({ page, mocks }) => {
   await onboard(page);
-  await context.setOffline(true);
+  await mocks.setOffline(true);
   await page.evaluate(() => { location.hash = '#/modes'; });
   await expect(page.locator('.offline-card')).toContainText('צריך אינטרנט כדי לשחק');
   await page.click('#retry');
   await expect(page.locator('.offline-card')).toBeVisible();
-  await context.setOffline(false);
+  await expect(page.locator('#retry')).toBeEnabled();
+  await mocks.setOffline(false);
   await page.click('#retry');
   await expect(page.locator('.mode-card').first()).toBeVisible({ timeout: 15_000 });
 });
