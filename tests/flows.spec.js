@@ -210,6 +210,8 @@ test('settings: theme, sound, vibration, default rules, profile edit, what\'s ne
     if (t !== 'system') await expect(page.locator('html')).toHaveAttribute('data-theme', t);
   }
   for (const k of ['sound', 'vibration', 'allowBack', 'allowFind']) await page.locator(`[data-set="${k}"]`).click({ force: true });
+  // wait until the last toggle is written to IndexedDB before reloading
+  await expect.poll(() => page.evaluate(async () => { const s = await import('/merotz-wiki/src/lib/store.js'); const v = await s.get('kv', 'settings'); return !!v && !v.sound && !v.vibration && !v.allowBack && !v.allowFind; })).toBe(true);
   await page.reload();
   for (const k of ['sound', 'vibration', 'allowBack', 'allowFind']) await expect(page.locator(`[data-set="${k}"]`)).not.toBeChecked();
   await page.click('#profile');
