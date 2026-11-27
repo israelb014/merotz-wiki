@@ -1,4 +1,6 @@
 name: Supabase keepalive
+# Keeps the free Supabase project (super-ramla-lod) from pausing: updates the single row in public.keepalive
+# every 3 days via REST with the public publishable key from src/config.js. Touches nothing else.
 
 on:
   schedule:
@@ -17,7 +19,8 @@ jobs:
         run: |
           URL=$(grep -oP "SUPABASE_URL = '\K[^']+" src/config.js || true)
           KEY=$(grep -oP "SUPABASE_KEY = '\K[^']+" src/config.js || true)
-          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Supabase not configured yet"; exit 0; fi
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Supabase not configured"; exit 1; fi
+          echo "Project: $URL"
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           CODE=$(curl -s -o resp.txt -w '%{http_code}' -X PATCH "$URL/rest/v1/keepalive?id=eq.1" \
             -H "apikey: $KEY" -H "Content-Type: application/json" -H "Prefer: return=representation" \

@@ -1,7 +1,8 @@
-// Public configuration. The Supabase publishable/anon key is public by design
-// (Realtime Broadcast + Presence only; no tables are exposed except `keepalive`).
-export const SUPABASE_URL = '';
-export const SUPABASE_KEY = '';
+// Public configuration. The Supabase publishable key is public by design
+// (Realtime Broadcast + Presence only; the only table this game uses is `keepalive`).
+// Project: super-ramla-lod (shared Supabase project).
+export const SUPABASE_URL = 'https://qyrbslobnelwdipguihs.supabase.co';
+export const SUPABASE_KEY = 'sb_publishable_8RobbG3zeN8jSGCWHEwDYA_sKfcQ6km';
 
 export const SITE_URL = 'https://israelb014.github.io/merotz-wiki/';
 export const REPO = 'israelb014/merotz-wiki';
