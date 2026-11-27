@@ -112,7 +112,7 @@
 .settings-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .settings-chips .tag { font-size: 17px; padding: 5px 16px; }
 .room-error { padding: 28px 20px; }
-.room-error .ic { margin: 0 auto; color: var(--primary); }
+.room-error > .ic { margin: 0 auto; color: var(--primary); }
 
 /* ===== Pregame ===== */
 .pregame .appbar.navy h1 { font-weight: 700; font-family: var(--f-ui); font-size: 30px; }

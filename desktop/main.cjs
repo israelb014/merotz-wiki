@@ -33,7 +33,7 @@ function createWindow() {
     },
   });
   Menu.setApplicationMenu(null);
-  win.once('ready-to-show', () => win.show());
+  if (!process.env.MW_HIDDEN) win.once('ready-to-show', () => win.show()); // MW_HIDDEN: automated smoke tests
 
   win.webContents.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
     if (isMainFrame && code !== -3 /* aborted */ && !url.startsWith('file:')) win.loadFile(path.join(__dirname, 'offline.html'));

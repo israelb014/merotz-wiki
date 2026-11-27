@@ -68,6 +68,7 @@ test('link rules: only main-namespace links playable, disabled links inert, anch
 });
 
 test('title resolution follows redirects and rejects missing pages', async ({ page }) => {
+  test.skip(!!process.env.BASE_URL, 'imports source modules – dev server only');
   await page.goto('./');
   const r = await page.evaluate(async () => {
     const m = await import('/merotz-wiki/src/lib/wiki.js');
