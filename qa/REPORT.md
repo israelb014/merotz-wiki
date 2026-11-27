@@ -115,3 +115,5 @@
 - גרסה הועלתה ל־1.0.1 (`package.json`, `desktop/package.json`, "מה חדש").
 - הפרסום עובר במנגנון הקיים: push ל־main ← בדיקות ← פרסום האתר (כל המעטפות טוענות אותו, אז תיקוני המשחק מגיעים מיד לכולם); תג `v1.0.1` ← בדיקות ← בניית APK/exe/deb/AppImage ← Release ← פרסום מחדש של האתר עם `version.json` (shell 1.0.1) ← Android מציג דיאלוג עדכון, Windows ו־AppImage מתעדכנים אוטומטית, deb מציג באנר הורדה.
 - הערה טכנית: מהסביבה הזו לא ניתן היה לדחוף תג git (ה־proxy ניתק את החיבור), ולכן נוסף לתהליך השחרור שלב שיוצר את התג בעצמו בהרצה ידנית (workflow_dispatch עם `tag=v1.0.1`) בעזרת ה־token המובנה של GitHub. ההמשך זהה למנגנון הקיים.
+- **תוצאה:** Release v1.0.1 פורסם (https://github.com/israelb014/merotz-wiki/releases/tag/v1.0.1) עם merotz-wiki.apk, merotz-wiki-setup.exe (+blockmap, latest.yml), merotz-wiki.deb, merotz-wiki.AppImage (latest-linux.yml). בדיקות JUnit של Android עברו ב־CI לפני בניית ה־APK. האתר החי מגיש 1.0.1.
+- **שער הבדיקות הוכיח את עצמו:** ההרצה הראשונה של השחרור נחסמה על בדיקה לא יציבה (ההגדרות נבדקו לפני שנשמרו ב־IndexedDB) – הבדיקה תוקנה וההרצה השנייה עברה.
