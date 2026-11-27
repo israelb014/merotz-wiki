@@ -96,9 +96,9 @@ async function main() {
       const sa = catArticles[startCat];
       const ta = catArticles[targetCat].filter((a) => a[2] >= 30);
       if (!sa.length || !ta.length) continue;
-      // start: popular/mid (top 50%); target: mid-ish (5%..60%) for a 3-4 click distance
-      const start = sa[Math.floor(rng() * sa.length * 0.5)][0];
-      const target = ta[Math.floor(ta.length * (0.05 + rng() * 0.55))][0];
+      // start: popular tier (top 30%); target: upper-mid (3%..45%) – recognizable, yet usually 3-4 clicks away
+      const start = sa[Math.floor(rng() * sa.length * 0.3)][0];
+      const target = ta[Math.floor(ta.length * (0.03 + rng() * 0.42))][0];
       if (start === target || usedPairs.has(pairKey(start, target)) || usedTitles.has(start) || usedTitles.has(target)) continue;
       const res = await shortestPath(start, target, { maxDepth: 5, budget: 250 });
       const len = res?.length ?? 0;

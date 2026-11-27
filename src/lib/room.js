@@ -57,12 +57,12 @@ export class Room {
     this.clockOffset = 0; // hostNow - localNow
     this.listeners = new Set();
     this.status = 'connecting';
-    this.error = null;
     this.busy = false;
+    this.connected = false;
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  emit(type, data) { for (const fn of this.listeners) try { fn(type, data); } catch (e) { console.error(e); } }
+  emit(type, data) { for (const fn of [...this.listeners]) try { fn(type, data); } catch (e) { console.error(e); } }
 
   get isHost() { return !!this.me && this.state?.hostId === this.me.id; }
   get hostId() { return this.state?.hostId; }
@@ -71,12 +71,17 @@ export class Room {
   get round() { return this.state?.round || null; }
   get inRound() { return !!this.me && !!this.round?.players?.some((p) => p.id === this.me.id); }
   hostToLocal(t) { return t - this.clockOffset; }
-  localNow() { return Date.now(); }
 
-  /** Players to display (present, sorted by joinedAt, max 5) */
-  get players() {
-    return [...this.present].sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1)).slice(0, MAX_PLAYERS);
+  /** Present players in admission order: host's roster order first, then newcomers by joinedAt. */
+  _ordered() {
+    const byId = new Map(this.present.map((p) => [p.id, p]));
+    const order = (this.state?.roster || []).map((r) => r.id).filter((id) => byId.has(id));
+    const seen = new Set(order);
+    const rest = this.present.filter((p) => !seen.has(p.id)).sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1));
+    return [...order.map((id) => byId.get(id)), ...rest];
   }
+  /** Players to display (max 5) */
+  get players() { return this._ordered().slice(0, MAX_PLAYERS); }
 
   persistSession() {
     if (!this.me) return;
@@ -97,50 +102,58 @@ export class Room {
     this.t = createTransport(this.code, this.me);
     this.t.onMessage((m) => this._onMessage(m));
     this.t.onPresence((list) => this._onPresence(list));
-    this.t.onStatus((s) => { this.status = s; this.emit('status', s); if (s === 'online' && this.state && !this.isHost) this.t.send('hello', { meta: this.me }); });
+    this.t.onStatus((s) => {
+      this.status = s; this.emit('status', s);
+      // after a reconnect (e.g. phone wake), ask the room for the latest state; a stale host steps down on a higher version
+      if (s === 'online' && this.connected) this.t.send('hello', { meta: this.me });
+    });
     await this.t.connect();
     this.persistSession();
     this._persistTimer = setInterval(() => this.persistSession(), 5000);
     this._tick = setInterval(() => this._hostTick(), 1000);
     this.t.send('hello', { meta: this.me });
 
-    // decide: create / wait for host state
     const others = () => this.present.filter((p) => p.id !== this.me.id);
     if (this.create && others().length === 0) {
       this._becomeHost(true);
     } else {
       const t0 = Date.now();
+      let resent = false;
       while (!this.state && Date.now() - t0 < 6000) {
         await new Promise((r) => setTimeout(r, 250));
-        if (Date.now() - t0 > 2500 && Date.now() - t0 < 2800) this.t.send('hello', { meta: this.me });
+        if (!resent && Date.now() - t0 > 2500) { resent = true; this.t.send('hello', { meta: this.me }); }
       }
       if (!this.state) {
         if (others().length === 0) {
           if (this.create) this._becomeHost(true);
           else { await this.leave(); throw new Error('notfound'); }
-        } else if (this.players[0]?.id === this.me.id) this._becomeHost(true);
+        } else if (this._ordered()[0]?.id === this.me.id) this._becomeHost(true);
       }
     }
     if (this._isOverflow()) { await this.leave(); throw new Error('full'); }
+    this.connected = true;
     this.status = 'online';
     this.emit('change');
   }
 
   _isOverflow() {
-    const idx = [...this.present].sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1)).findIndex((p) => p.id === this.me.id);
-    const known = this.state?.round?.players?.some((p) => p.id === this.me.id);
-    return idx >= MAX_PLAYERS && !known;
+    if (!this.me) return false;
+    const idx = this._ordered().findIndex((p) => p.id === this.me.id);
+    return idx >= MAX_PLAYERS && !this.inRound;
   }
 
   _becomeHost(fresh) {
     const prev = this.state;
+    // rebase the running round onto my clock
+    const round = prev?.round ? { ...prev.round, startAt: prev.round.startAt - this.clockOffset } : null;
+    this.clockOffset = 0;
     this.state = {
       v: (prev?.v || 0) + 1,
       hostId: this.me.id,
       code: this.code,
       phase: prev?.phase || 'lobby',
       settings: prev?.settings || { ...DEFAULT_GAME_SETTINGS, ...(this.defaultSettings || {}) },
-      round: prev?.round || null,
+      round,
       results: prev?.results || null,
       routes: prev?.routes || {},
       roster: prev?.roster || [],
@@ -151,11 +164,24 @@ export class Room {
     this._broadcastState();
   }
 
+  /** Heartbeat / resend without changing the version */
   _broadcastState() {
     if (!this.isHost) return;
     this.state.hostNow = Date.now();
     this.t.send('state', { state: this.state });
     this.emit('change');
+  }
+  /** A real state change: bump the version, then broadcast */
+  _commit() {
+    if (!this.isHost) return;
+    this.state.v++;
+    this._broadcastState();
+  }
+
+  _winsTie(otherHostId) {
+    const a = this.present.find((p) => p.id === otherHostId);
+    if (!a) return true;
+    return this.me.joinedAt < a.joinedAt || (this.me.joinedAt === a.joinedAt && this.me.id < a.id);
   }
 
   _onMessage(m) {
@@ -163,39 +189,43 @@ export class Room {
       case 'state': {
         const s = m.state;
         if (!s) return;
-        if (this.state && s.v < this.state.v && s.hostId === this.state.hostId) return;
-        if (this.state && this.isHost && s.hostId !== this.me.id) {
-          // Two hosts: the older joinedAt wins
-          const other = this.present.find((p) => p.id === s.hostId);
-          if (other && other.joinedAt > this.me.joinedAt) { this._broadcastState(); return; }
+        if (this.state) {
+          if (s.v < this.state.v) { if (this.isHost && s.hostId !== this.me.id) this._broadcastState(); return; }
+          if (s.v === this.state.v && s.hostId !== this.state.hostId && this.isHost && this._winsTie(s.hostId)) { this._broadcastState(); return; }
         }
+        const wasHost = this.isHost;
         const prevPhase = this.state?.phase;
         const prevRound = this.state?.round?.id;
         this.clockOffset = (s.hostNow || Date.now()) - Date.now();
         this.state = s;
+        if (s.round?.id !== prevRound) {
+          this.routes = {}; this.absentSince = {};
+          for (const [k, v] of Object.entries(this.progress)) if (v.roundId !== s.round?.id) delete this.progress[k];
+        }
         if (s.routes) for (const [pid, path] of Object.entries(s.routes)) this.routes[pid] = path;
-        if (s.round?.id !== prevRound) { this.routes = { ...(s.routes || {}) }; }
+        if (wasHost && !this.isHost) this.emit('host-changed');
         this.emit('change');
         if (prevPhase !== s.phase || prevRound !== s.round?.id) this.emit('phase', s.phase);
+        if (this.connected && this._isOverflow()) this.emit('full');
         break;
       }
       case 'hello':
         if (this.isHost) { this._updateRoster(); this._broadcastState(); }
         break;
-      case 'progress':
+      case 'progress': {
         if (!m.roundId || m.roundId !== this.round?.id) return;
+        const prev = this.progress[m.from];
+        if (prev && prev.roundId === m.roundId && isDone(prev.status) && !isDone(m.status)) return; // no replays after finishing
         this.progress[m.from] = { roundId: m.roundId, clicks: m.clicks, status: m.status, elapsed: m.elapsed };
         this.emit('progress');
         if (this.isHost) this._checkRoundEnd();
         break;
+      }
       case 'route':
         if (m.roundId !== this.round?.id) return;
         this.routes[m.from] = m.path;
-        if (this.isHost) { this.state.routes = { ...(this.state.routes || {}), [m.from]: m.path }; this._broadcastState(); }
+        if (this.isHost) { this.state.routes = { ...(this.state.routes || {}), [m.from]: m.path }; this._commit(); }
         this.emit('routes');
-        break;
-      case 'ping-req':
-        if (this.isHost) this._broadcastState();
         break;
     }
   }
@@ -209,42 +239,46 @@ export class Room {
       if (!ids.has(p.id)) this.absentSince[p.id] ??= now;
       else delete this.absentSince[p.id];
     }
-    const joined = list.filter((p) => !before.has(p.id) && p.id !== this.me.id);
+    const joined = list.filter((p) => !before.has(p.id) && p.id !== this.me?.id);
     if (joined.length && before.size) this.emit('joined', joined);
 
     if (this.state) {
       if (!ids.has(this.state.hostId)) {
-        // host left → oldest remaining player becomes host
-        const next = this.players[0];
-        if (next?.id === this.me.id) this._becomeHost(false);
+        // host left → first remaining player (admission order) becomes host
+        if (this._ordered()[0]?.id === this.me.id) this._becomeHost(false);
       } else if (this.isHost) {
         this._updateRoster();
-        this._broadcastState();
+        this._commit();
       }
     }
+    if (this.connected && this._isOverflow()) this.emit('full');
     this.emit('presence');
   }
 
   _updateRoster() {
     if (!this.isHost) return;
-    const roster = new Map((this.state.roster || []).map((p) => [p.id, p]));
-    for (const p of this.players) roster.set(p.id, { id: p.id, name: p.name, avatar: p.avatar, color: p.color, joinedAt: p.joinedAt });
-    this.state.roster = [...roster.values()].slice(-12);
+    const ids = new Set(this.present.map((p) => p.id));
+    const inRound = new Set((this.round?.players || []).map((p) => p.id));
+    const now = Date.now();
+    // keep present members, and round members who may still reconnect (≤60s); then append newcomers
+    const kept = (this.state.roster || []).filter((r) => ids.has(r.id) || (inRound.has(r.id) && this.state.phase === 'playing' && now - (this.absentSince[r.id] || now) <= RECONNECT_MS));
+    const keptIds = new Set(kept.map((r) => r.id));
+    const fresh = this.present.filter((p) => !keptIds.has(p.id)).sort((a, b) => a.joinedAt - b.joinedAt || (a.id < b.id ? -1 : 1));
+    this.state.roster = [...kept, ...fresh].map(({ id, name, avatar, color, joinedAt }) => ({ id, name, avatar, color, joinedAt }));
   }
 
   // ---------- host actions ----------
   updateSettings(patch) {
     if (!this.isHost) return;
     this.state.settings = { ...this.state.settings, ...patch };
-    this.state.v++;
-    this._broadcastState();
+    this._commit();
   }
 
   async startRound() {
     if (!this.isHost || this.busy) return;
     this.busy = true;
     this.state.msg = 'בוחרים זוג ערכים…';
-    this._broadcastState();
+    this._commit();
     try {
       const s = this.state.settings;
       let pair;
@@ -252,6 +286,7 @@ export class Room {
       else pair = await pickPair({ category: s.category, difficulty: s.difficulty, exclude: this._recent || [] });
       this._recent = [...(this._recent || []), pair.start, pair.target].slice(-20);
       const forbidden = s.mode === 'forbidden' ? await pickForbidden(pair.start, pair.target) : null;
+      if (!this.isHost) return; // lost host status while choosing
       const players = this.players.map(({ id, name, avatar, color }) => ({ id, name, avatar, color }));
       this.progress = {};
       this.routes = {};
@@ -268,12 +303,10 @@ export class Room {
       this.state.routes = {};
       this.state.phase = 'playing';
       this.state.msg = null;
-      this.state.v++;
-      this._broadcastState();
+      this._commit();
       this.emit('phase', 'playing');
     } catch (e) {
-      this.state.msg = null;
-      this._broadcastState();
+      if (this.isHost) { this.state.msg = null; this._commit(); }
       throw e;
     } finally {
       this.busy = false;
@@ -283,8 +316,7 @@ export class Room {
   backToLobby() {
     if (!this.isHost) return;
     this.state.phase = 'lobby';
-    this.state.v++;
-    this._broadcastState();
+    this._commit();
     this.emit('phase', 'lobby');
   }
 
@@ -294,12 +326,14 @@ export class Room {
     if (!this._lastBeat || Date.now() - this._lastBeat > 4000) { this._lastBeat = Date.now(); this._broadcastState(); }
   }
 
+  _pr(p) { const pr = this.progress[p.id]; return pr && pr.roundId === this.round?.id ? pr : null; }
+
   _checkRoundEnd() {
     const r = this.round;
     if (!r || this.state.phase !== 'playing') return;
     const now = Date.now();
     const allDone = r.players.every((p) => {
-      const pr = this.progress[p.id];
+      const pr = this._pr(p);
       if (pr && isDone(pr.status)) return true;
       const abs = this.absentSince[p.id];
       return abs && now - abs > RECONNECT_MS;
@@ -311,7 +345,7 @@ export class Room {
   _finishRound() {
     const r = this.round;
     const list = r.players.map((p) => {
-      const pr = this.progress[p.id] || { clicks: 0, status: 'playing', elapsed: null };
+      const pr = this._pr(p) || { clicks: 0, status: 'playing', elapsed: null };
       let status = pr.status;
       if (status === 'playing') status = this.absentSince[p.id] ? 'left' : r.limit ? 'timeout' : 'left';
       return { ...p, clicks: pr.clicks || 0, elapsed: pr.elapsed ?? (r.limit || 0), status };
@@ -319,30 +353,30 @@ export class Room {
     const ranking = rankPlayers(r.settings.mode, list);
     this.state.results = { roundId: r.id, ranking, mode: r.settings.mode };
     this.state.phase = 'results';
-    this.state.v++;
-    this._broadcastState();
+    this._commit();
     this.emit('phase', 'results');
   }
 
   // ---------- player actions ----------
-  sendProgress(p) {
-    if (!this.round) return;
-    const msg = { roundId: this.round.id, clicks: p.clicks, status: p.status, elapsed: p.elapsed };
+  sendProgress(p, roundId = this.round?.id) {
+    if (!this.round || roundId !== this.round.id) return; // never report a finished round into a new one
+    const msg = { roundId, clicks: p.clicks, status: p.status, elapsed: p.elapsed };
     this.progress[this.me.id] = msg;
     this.t.send('progress', msg);
     this.emit('progress');
     if (this.isHost) this._checkRoundEnd();
   }
-  sendRoute(path) {
-    if (!this.round) return;
+  sendRoute(path, roundId = this.round?.id) {
+    if (!this.round || roundId !== this.round.id) return;
     this.routes[this.me.id] = path;
-    this.t.send('route', { roundId: this.round.id, path });
-    if (this.isHost) { this.state.routes = { ...(this.state.routes || {}), [this.me.id]: path }; this._broadcastState(); }
+    this.t.send('route', { roundId, path });
+    if (this.isHost) { this.state.routes = { ...(this.state.routes || {}), [this.me.id]: path }; this._commit(); }
     this.emit('routes');
   }
 
   async leave() {
     clearInterval(this._tick); clearInterval(this._persistTimer);
+    this.connected = false;
     try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch {}
     activeRoomId = null;
     await this.t?.close();

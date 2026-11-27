@@ -115,7 +115,7 @@ function mpResults(app) {
       recordedRounds.add(res.roundId);
       const mine = res.ranking.find((p) => p.id === room.me.id);
       if (mine && g) recordResult(g, { kind: 'mp', rank: mine.rank, playerCount: res.ranking.length, roundId: res.roundId, players: res.ranking.map((p) => ({ name: p.name, color: p.color, avatar: p.avatar, clicks: p.clicks, elapsed: p.elapsed, status: p.status, rank: p.rank })) });
-      if (g) room.sendRoute(g.path);
+      if (g) room.sendRoute(g.path, g.meta?.roundId);
       if (mine?.rank === 1) play('win');
     }
     renderFinal(res);

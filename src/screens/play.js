@@ -1,13 +1,13 @@
 import { icon, avatarBadge } from '../lib/icons.js';
 import { esc, on, ring, setRing, fmtTime, clicksLabel } from '../lib/dom.js';
-import { go } from '../lib/router.js';
+import { go, currentRoute } from '../lib/router.js';
 import { openOverlay, confirmDialog, toast, closeTop, overlayOpen } from '../lib/ui.js';
 import { fetchArticle, fetchSummary, articleUrl, OfflineError, sameTitle } from '../lib/wiki.js';
 import { MODES, STATUS_LABEL } from '../lib/modes.js';
 import { play as sfx } from '../lib/sound.js';
 import { vibrate } from '../lib/haptics.js';
 import { ctx, recordResult } from '../app.js';
-import { saveActiveGame, clearActiveGame } from '../lib/room.js';
+import { saveActiveGame } from '../lib/room.js';
 import { openExternal } from '../lib/platform.js';
 
 // exposed for the hardware back button
@@ -152,13 +152,16 @@ export default function playScreen(app) {
     if (res.event === 'same') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (!res.ok) return;
     afterMove();
+    if (!alive) return;
     if (res.event === 'move') show(res.title);
     else end(res.event, res.title);
   });
 
+  const roundId = g.meta?.roundId;
   function afterMove() {
+    if (room) { room.sendProgress(g.progress(), roundId); saveActiveGame(room.code, roundId, g.snapshot()); }
+    if (!alive) return;
     updateHud(); renderCrumbs(); renderStrip();
-    if (room) { room.sendProgress(g.progress()); saveActiveGame(room.code, room.round.id, g.snapshot()); }
   }
 
   // ---------- back ----------
@@ -170,6 +173,7 @@ export default function playScreen(app) {
     if (!t) return true;
     sfx('back'); vibrate('light');
     afterMove();
+    if (!alive) return true;
     if (g.status === 'failed') { end('failed'); return true; }
     show(t);
     return true;
@@ -188,8 +192,8 @@ export default function playScreen(app) {
   async function quit() {
     if (ended) return;
     if (await confirmDialog({ title: 'לפרוש מהמשחק?', text: 'התוצאה תסומן כ"ויתר".', ok: 'כן, אני פורש', cancel: 'ממשיכים לשחק', danger: true })) {
-      if (ended) return;
-      g.giveUp(); afterMove(); end('gaveup');
+      if (ended || !alive) return;
+      g.giveUp(); afterMove(); if (alive) end('gaveup');
     }
   }
   $('#b-quit').onclick = quit;
@@ -215,7 +219,7 @@ export default function playScreen(app) {
     if (!g.settings.allowFind || ended) return;
     findOpen = true; findbar.hidden = false; findIn.focus(); findIn.select();
   }
-  function closeFind() { findOpen = false; findbar.hidden = true; clearMarks(); $('#find-count').textContent = ''; }
+  function closeFind() { findOpen = false; findbar.hidden = true; clearMarks(); const fc = $('#find-count'); if (fc) fc.textContent = ''; }
   function clearMarks() {
     body.querySelectorAll('mark.fm').forEach((m) => m.replaceWith(document.createTextNode(m.textContent)));
     body.normalize(); hits = [];
@@ -263,16 +267,16 @@ export default function playScreen(app) {
   // ---------- timer ----------
   const tick = () => {
     if (!alive || ended) return;
-    if (g.tick()) { afterMove(); end('timeout'); return; }
+    if (g.tick()) { afterMove(); if (alive) end('timeout'); return; }
     if (timed) updateHud();
   };
   const timerId = setInterval(tick, 250);
-  const progressBeat = room ? setInterval(() => room.sendProgress(g.progress()), 3000) : null;
+  const progressBeat = room ? setInterval(() => room.sendProgress(g.progress(), roundId), 3000) : null;
   const offRoom = room?.on((type) => { if (type === 'progress' || type === 'presence' || type === 'change') renderStrip(); });
 
   // ---------- end ----------
   async function end(event, title) {
-    if (ended) return;
+    if (ended || !alive) return;
     ended = true;
     clearInterval(timerId);
     closeFind();
@@ -284,24 +288,23 @@ export default function playScreen(app) {
     overlay.className = `end-flash ${won ? 'win' : 'lose'}`;
     overlay.innerHTML = `<div class="end-card">${icon(won ? 'trophy' : event === 'dq' ? 'ban' : event === 'timeout' ? 'clock' : 'flag', { size: 46 })}<b>${msg}</b>${won ? `<span>${clicksLabel(g.clicks)} · ${fmtTime(g.elapsed())}</span>` : ''}</div>`;
     app.appendChild(overlay);
+    const stillHere = () => alive && currentRoute()?.path === '/play';
     if (room) {
-      room.sendProgress(g.progress());
-      clearActiveGame();
-      setTimeout(() => go('/results', { replace: true }), 1500);
-      recordLater();
+      // keep the final snapshot so a reload/rejoin can't replay this round; results are recorded on the results screen
+      room.sendProgress(g.progress(), roundId);
+      saveActiveGame(room.code, roundId, g.snapshot());
+      setTimeout(() => stillHere() && ctx.session === g && go('/results', { replace: true }), 1500);
     } else {
       await recordResult(g);
-      setTimeout(() => alive && go('/results', { replace: true }), 1500);
+      setTimeout(() => stillHere() && go('/results', { replace: true }), 1500);
     }
   }
-  // MP results are recorded when ranking arrives (results screen)
-  function recordLater() {}
 
   // ---------- init ----------
   updateHud(); renderCrumbs(); renderStrip();
   show(g.current, { scroll: false });
   if (g.status !== 'playing') end(g.status === 'finished' ? 'arrived' : g.status);
-  if (room) { room.sendProgress(g.progress()); saveActiveGame(room.code, room.round.id, g.snapshot()); }
+  if (room) { room.sendProgress(g.progress(), roundId); saveActiveGame(room.code, roundId, g.snapshot()); }
 
   return () => {
     alive = false;

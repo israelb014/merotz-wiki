@@ -23,6 +23,9 @@ export function go(path, { replace = false, query } = {}) {
 export const back = () => history.back();
 export const currentRoute = () => current;
 
+let navSeq = 0;
+export const navToken = () => navSeq;
+
 export async function render() {
   const r = parse();
   if (guard) {
@@ -32,11 +35,14 @@ export async function render() {
   const fn = routes.get(r.path) || routes.get('/');
   if (typeof cleanup === 'function') { try { cleanup(); } catch (e) { console.error(e); } }
   cleanup = null;
+  const id = ++navSeq;
   current = r;
   const app = document.getElementById('app');
   app.innerHTML = '';
   window.scrollTo(0, 0);
-  cleanup = await fn(app, r.query);
+  const c = await fn(app, r.query);
+  if (id === navSeq) cleanup = c;
+  else if (typeof c === 'function') { try { c(); } catch (e) { console.error(e); } } // screen was left while rendering
 }
 
 window.addEventListener('popstate', () => render());

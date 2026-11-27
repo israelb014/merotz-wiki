@@ -32,7 +32,8 @@ export async function fillCard(cardEl) {
 
 export default function pregame(app) {
   const room = ctx.room;
-  const isMP = !!room && room.phase === 'playing' && room.round;
+  // multiplayer only when entered from the room flow (a solo start sets ctx.pending)
+  const isMP = !!room && room.phase === 'playing' && !!room.round && room.inRound && !ctx.pending;
   const p = isMP ? { start: room.round.start, target: room.round.target, forbidden: room.round.forbidden, settings: room.round.settings, kind: 'mp' } : ctx.pending;
   if (!p) { go('/', { replace: true }); return; }
   const mode = MODES[p.settings.mode];
@@ -92,12 +93,11 @@ export default function pregame(app) {
       setRing(r, Math.min(1, left / Math.max(total, Math.min(left, 6000))));
       timer = requestAnimationFrame(step);
     };
-    step();
+    timer = requestAnimationFrame(step); // never navigate synchronously during render
   };
 
   if (isMP) {
     // if round already running (reconnect / late), launch immediately
-    if (!room.inRound) { go('/room', { replace: true, query: { code: room.code } }); return; }
     countdown(() => room.hostToLocal(room.round.startAt));
   } else {
     countEl.innerHTML = `<button class="btn primary go-btn" id="ready">${icon('play', { size: 22 })} יאללה!</button>`;

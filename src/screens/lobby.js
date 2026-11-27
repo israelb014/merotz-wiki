@@ -1,6 +1,6 @@
 import { icon, avatarBadge, colorHex } from '../lib/icons.js';
 import { esc, on } from '../lib/dom.js';
-import { go } from '../lib/router.js';
+import { go, navToken } from '../lib/router.js';
 import { appBar, confirmDialog, toast } from '../lib/ui.js';
 import { MODES, catName, diffName, STATUS_LABEL } from '../lib/modes.js';
 import { MAX_PLAYERS, SITE_URL } from '../config.js';
@@ -15,9 +15,21 @@ import { transportKind } from '../lib/transport.js';
 
 export const inviteUrl = (code) => `${SITE_URL}?room=${code}`;
 
+function showError(app, code, kind) {
+  const msg = kind === 'full' ? 'החדר מלא' : kind === 'notfound' ? 'החדר לא נמצא' : 'לא הצלחנו להתחבר לחדר';
+  const sub = kind === 'full' ? `בחדר כבר ${MAX_PLAYERS} שחקנים.` : kind === 'notfound' ? 'בדקו את הקוד ונסו שוב, או פתחו חדר חדש.' : 'בדקו את החיבור לאינטרנט ונסו שוב.';
+  app.innerHTML = `<main class="screen">${appBar({ title: 'חדר משחק', navy: true })}
+    <div class="card center stack mt-l room-error">${icon(kind === 'full' ? 'users' : 'info', { size: 44 })}<h2 class="h-lg">${msg}</h2><p class="muted" style="margin:0">${sub}</p>
+    <button class="btn primary" data-go="/join">${icon('keyboard')} קוד אחר</button><button class="btn" data-go="/">${icon('home')} לתפריט</button></div></main>`;
+  on(app, 'click', '[data-go]', (ev, t) => go(t.dataset.go, { replace: true }));
+  app.querySelector('[data-back]').onclick = () => go('/', { replace: true });
+}
+
 export default async function lobby(app, q) {
   const code = q.code;
   if (!/^\d{4}$/.test(code || '')) { go('/', { replace: true }); return; }
+  const token = navToken();
+  if (q.full === '1') { showError(app, code, 'full'); return; }
 
   if (!ctx.room || ctx.room.code !== code) {
     if (ctx.room) { await ctx.room.leave(); ctx.room = null; }
@@ -28,24 +40,18 @@ export default async function lobby(app, q) {
     try {
       await room.connect();
     } catch (e) {
-      const msg = e.message === 'full' ? 'החדר מלא' : e.message === 'notfound' ? 'החדר לא נמצא' : 'לא הצלחנו להתחבר לחדר';
-      const sub = e.message === 'full' ? `בחדר כבר ${MAX_PLAYERS} שחקנים.` : e.message === 'notfound' ? 'בדקו את הקוד ונסו שוב, או פתחו חדר חדש.' : 'בדקו את החיבור לאינטרנט ונסו שוב.';
-      if (!app.isConnected) return;
-      app.innerHTML = `<main class="screen">${appBar({ title: 'חדר משחק', navy: true })}
-        <div class="card center stack mt-l room-error">${icon(e.message === 'full' ? 'users' : 'info', { size: 44 })}<h2 class="h-lg">${msg}</h2><p class="muted" style="margin:0">${sub}</p>
-        <button class="btn primary" data-go="/join">${icon('keyboard')} קוד אחר</button><button class="btn" data-go="/">${icon('home')} לתפריט</button></div></main>`;
-      on(app, 'click', '[data-go]', (ev, t) => go(t.dataset.go, { replace: true }));
-      app.querySelector('[data-back]').onclick = () => go('/', { replace: true });
+      if (navToken() !== token) return;
+      showError(app, code, e.message);
       return;
     }
-    if (!app.isConnected) { /* navigated away while connecting */ }
+    if (navToken() !== token) { await room.leave(); return; } // user left while connecting
     ctx.room = room;
+    ctx.pending = null;
     attachRoom(room);
-    // already in a running round (reconnect)?
-    if (room.phase === 'playing' && room.inRound) { go('/pregame', { replace: true }); return; }
-    if (room.phase === 'results' && room.inRound) { /* show lobby; results only for participants with session */ }
   }
   const room = ctx.room;
+  // in a running round (reconnect / browser back): return to the game
+  if (room.phase === 'playing' && room.inRound) { ctx.pending = null; go('/pregame', { replace: true }); return; }
 
   let lastSig = '';
   const render = () => {

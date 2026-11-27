@@ -54,6 +54,13 @@ setGuard((r) => {
   return null;
 });
 
+async function leaveRoomConfirm() {
+  const { confirmDialog } = await import('./lib/ui.js');
+  if (await confirmDialog({ title: 'לצאת מהחדר?', ok: 'יציאה', danger: true })) {
+    await ctx.room?.leave(); ctx.room = null; go('/', { replace: true });
+  }
+}
+
 function openRoomLink(code) {
   go('/join', { query: { code } });
 }
@@ -78,6 +85,10 @@ async function boot() {
     if (overlayOpen()) { closeTop(); return true; }
     const path = currentRoute()?.path;
     if (path === '/' ) return false;
+    if (ctx.room) {
+      if (path === '/room') { leaveRoomConfirm(); return true; }
+      if (path === '/results' || path === '/pregame') { go('/room', { replace: true, query: { code: ctx.room.code } }); return true; }
+    }
     if (path === '/results' || path === '/pregame') { go('/', { replace: true }); return true; }
     if (history.length > 1) { history.back(); return true; }
     go('/', { replace: true });
