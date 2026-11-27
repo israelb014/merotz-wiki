@@ -19,6 +19,8 @@ export default defineConfig({
     trace: 'off',
     screenshot: 'only-on-failure',
     serviceWorkers: 'block',
+    // live test only: let the browser use the environment's HTTPS proxy (if any) to reach Wikipedia
+    ...(live && process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } } : {}),
     // local sandbox: preinstalled Chromium (CI installs the matching browser instead)
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
   },

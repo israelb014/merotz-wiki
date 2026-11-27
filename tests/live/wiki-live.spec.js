@@ -3,12 +3,13 @@
 import { test, expect } from '@playwright/test';
 
 test('live Wikipedia: חומוס → טחינה through the real REST + action APIs', async ({ page, request, context }) => {
-  const probe = await request.get('https://he.wikipedia.org/w/api.php?action=query&meta=siteinfo&format=json&origin=*', { headers: { 'Api-User-Agent': 'MerotzWiki/1.0 (live check)' } }).catch((e) => ({ status: () => 0, e }));
+  const probe = await request.get('https://he.wikipedia.org/w/api.php?action=query&meta=siteinfo&format=json&origin=*', { headers: { 'Api-User-Agent': 'MerotzWiki/1.0 (live check)' }, timeout: 15_000 }).catch((e) => ({ status: () => 0, e }));
   test.skip(probe.status() !== 200, `Wikipedia API not reachable from this environment (HTTP ${probe.status()})`);
   await context.route(/supabase\.co|ntfy\.sh/, (r) => r.abort());
   await page.goto('./');
   await page.fill('#nick', 'בדיקה חיה');
   await page.click('#go');
+  await expect(page.locator('.home')).toBeVisible({ timeout: 20_000 });
   await page.goto('./#/modes');
   await page.click('[data-mode="fewest"]');
   await page.click('.custom summary');

@@ -14,6 +14,8 @@ const BACKUPS = ['{}', 'not json', '{"app":"merotz-wiki","kv":{"profile":5}}',
 const HASHES = ['/', '/modes', '/setup?ctx=solo', '/setup?ctx=room', '/stats', '/stats?tab=history', '/stats?tab=ach', '/settings', '/campaign', '/daily',
   '/join', '/join?code=12', '/room?code=abcd', '/results', '/play', '/pregame', '/nope', '/offline', '/modes?ctx=room'];
 
+test.describe.configure({ mode: 'parallel' });
+
 for (const seed of SEEDS) {
   test(`monkey run seed=${seed} (${ACTIONS} actions) @mobile-only`, async ({ page }) => {
     test.setTimeout(40 * 60_000);
@@ -30,23 +32,29 @@ for (const seed of SEEDS) {
       const roll = r();
       let act = '';
       try {
-        if (roll < 0.03) { act = 'back'; await page.goBack({ timeout: 3000 }).catch(() => {}); }
+        if (roll < 0.03) { act = 'back'; await page.goBack({ timeout: 1500 }).catch(() => {}); }
         else if (roll < 0.05) { const h = pick(HASHES); act = `goto ${h}`; await page.evaluate((h) => { location.hash = '#' + h; }, h); }
         else if (roll < 0.07) { const k = pick(['Escape', 'Enter', 'Tab', 'Alt+ArrowLeft', 'Control+f', 'Backspace']); act = `key ${k}`; await page.keyboard.press(k); }
         else {
-          const handles = await page.$$('button:not([disabled]), a, input, [data-go], [data-lvl], summary, label, .scrim');
-          const vis = [];
-          for (const e of handles) { const b = await e.boundingBox().catch(() => null); if (b && b.width > 0 && b.height > 0) vis.push(e); }
-          if (!vis.length) act = 'none';
+          // one in-page query: pick a random visible clickable element (articles have hundreds of links)
+          const target = await page.evaluate((rnd) => {
+            for (const n of document.querySelectorAll('[data-monkey]')) delete n.dataset.monkey;
+            const all = [...document.querySelectorAll('button:not([disabled]), a, input, [data-go], [data-lvl], summary, label, .scrim')]
+              .filter((n) => { const b = n.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(n).visibility !== 'hidden'; });
+            if (!all.length) return null;
+            const n = all[Math.floor(rnd * all.length)];
+            n.dataset.monkey = '1';
+            return { tag: `${n.tagName.toLowerCase()}${n.id ? '#' + n.id : ''}.${[...n.classList].slice(0, 2).join('.')}${n.dataset?.t ? `[${n.dataset.t}]` : ''}`, type: n.getAttribute('type') };
+          }, r());
+          if (!target) act = 'none';
           else {
-            const e = pick(vis);
-            const tag = await e.evaluate((n) => `${n.tagName.toLowerCase()}${n.id ? '#' + n.id : ''}.${[...n.classList].slice(0, 2).join('.')}${n.dataset?.t ? `[${n.dataset.t}]` : ''}`).catch(() => '?');
+            const e = page.locator('[data-monkey="1"]').first();
+            const { tag, type } = target;
             if (tag.startsWith('input')) {
-              const type = await e.getAttribute('type').catch(() => null);
-              if (type === 'checkbox') { act = `toggle ${tag}`; await e.click({ timeout: 1500, force: true }); }
-              else if (type === 'file') { act = 'file input'; await e.click({ timeout: 1500, force: true }); }
-              else { const v = pick(WEIRD); act = `fill ${tag} ${JSON.stringify(v).slice(0, 30)}`; await e.fill(v, { timeout: 1500 }); if (r() < 0.4) await e.press('Enter', { timeout: 1500 }); }
-            } else { act = `click ${tag}`; await e.click({ timeout: 1500 }); }
+              if (type === 'checkbox') { act = `toggle ${tag}`; await e.click({ timeout: 600, force: true }); }
+              else if (type === 'file') { act = 'file input'; await e.click({ timeout: 600, force: true }); }
+              else { const v = pick(WEIRD); act = `fill ${tag} ${JSON.stringify(v).slice(0, 30)}`; await e.fill(v, { timeout: 600 }); if (r() < 0.4) await e.press('Enter', { timeout: 600 }); }
+            } else { act = `click ${tag}`; await e.click({ timeout: 600 }); }
           }
         }
       } catch { /* element vanished / covered – normal for a monkey */ }

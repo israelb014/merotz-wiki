@@ -97,7 +97,7 @@ export async function flush() {
 }
 
 // browser noise that is not a bug in the game (and would only use up the hourly budget)
-const IGNORE = [/ResizeObserver loop/i, /^Script error\.?$/i, /extension:\/\//i, /^AbortError/i, /The play\(\) request was interrupted/i];
+const IGNORE = [/ResizeObserver loop/i, /^Script error\.?$/im, /extension:\/\//i, /^AbortError/i, /The play\(\) request was interrupted/i];
 export function isNoise(err) {
   const text = `${err?.message || err || ''}\n${err?.stack || ''}`;
   return IGNORE.some((re) => re.test(text)) || (err?.name === 'AbortError');
