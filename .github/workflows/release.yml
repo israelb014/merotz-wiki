@@ -17,7 +17,21 @@ env:
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
+  # manual run: create the tag on the dispatched commit if it does not exist yet (GITHUB_TOKEN pushes don't re-trigger)
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure tag exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then echo "tag $TAG exists"; exit 0; fi
+          git config user.name "merotz-wiki-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "מרוץ ויקי $TAG"
+          git push origin "refs/tags/$TAG"
+
   tests:
+    needs: tag
     uses: ./.github/workflows/tests.yml
 
   android:
